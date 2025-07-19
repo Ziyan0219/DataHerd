@@ -119,7 +119,67 @@ def create_app():
     if os.getenv("USE_DOCKER") == "True":
         app.mount("/", StaticFiles(directory="/app/static/dist"), name="static")
     else:
-        app.mount("/", StaticFiles(directory="../static/dist"), name="static")
+        # 检查前端构建目录是否存在，如果不存在则使用前端源码目录
+        frontend_dist_path = os.path.join(current_dir, "dataherd-frontend", "dist")
+        frontend_public_path = os.path.join(current_dir, "dataherd-frontend", "public")
+        
+        if os.path.exists(frontend_dist_path):
+            app.mount("/", StaticFiles(directory=frontend_dist_path), name="static")
+        elif os.path.exists(frontend_public_path):
+            app.mount("/", StaticFiles(directory=frontend_public_path), name="static")
+        else:
+            # 创建一个简单的静态目录作为临时解决方案
+            temp_static_dir = os.path.join(current_dir, "temp_static")
+            os.makedirs(temp_static_dir, exist_ok=True)
+            
+            # 创建一个简单的index.html
+            index_html_path = os.path.join(temp_static_dir, "index.html")
+            if not os.path.exists(index_html_path):
+                with open(index_html_path, 'w') as f:
+                    f.write("""<!DOCTYPE html>
+<html>
+<head>
+    <title>DataHerd - Cattle Data Cleaning Agent</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .header { text-align: center; margin-bottom: 40px; }
+        .api-link { background: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>DataHerd - Intelligent Cattle Data Cleaning Agent</h1>
+            <p>AI-powered data cleaning platform for Elanco's cattle lot management operations</p>
+        </div>
+        <div>
+            <h2>API Documentation</h2>
+            <p>The DataHerd API server is running successfully!</p>
+            <p><a href="/docs" class="api-link">View API Documentation</a></p>
+            
+            <h2>Features</h2>
+            <ul>
+                <li>Natural Language Rule Processing</li>
+                <li>Intelligent Data Preview</li>
+                <li>Operation Rollback</li>
+                <li>Client-Specific Rules</li>
+                <li>Comprehensive Reporting</li>
+            </ul>
+            
+            <h2>Quick Start</h2>
+            <ol>
+                <li>Configure your OpenAI API key via <code>/api/set_api_key</code></li>
+                <li>Use <code>/api/clean_data</code> to process cattle data</li>
+                <li>Preview changes with <code>/api/preview_cleaning</code></li>
+                <li>Generate reports with <code>/api/generate_report</code></li>
+            </ol>
+        </div>
+    </div>
+</body>
+</html>""")
+            
+            app.mount("/", StaticFiles(directory=temp_static_dir), name="static")
     return app
 
 
