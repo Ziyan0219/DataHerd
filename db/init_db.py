@@ -8,7 +8,7 @@ This module handles the initialization of the DataHerd database.
 from sqlalchemy import create_engine, text
 from config.config import username, password, hostname, database_name, SQLALCHEMY_DATABASE_URI
 from db.base import Base, engine, SessionLocal
-from db.models import CleaningRule, OperationLog, BatchInfo, LotInfo
+from db.models import CattleRecord, CleaningRule, OperationLog, BatchInfo, LotInfo
 
 
 # 检查数据库是否存在，并在需要时创建数据库（仅适用于 MySQL）

@@ -4,12 +4,30 @@ DataHerd Database Models
 This module contains the database models specifically designed for cattle data cleaning operations.
 """
 
-from sqlalchemy import Column, String, Text, DateTime, Boolean, Integer, ForeignKey
+from sqlalchemy import Column, String, Text, DateTime, Boolean, Integer, ForeignKey, Float
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 Base = declarative_base()
+
+class CattleRecord(Base):
+    """Model for storing cattle data records."""
+    __tablename__ = 'cattle_records'
+    
+    id = Column(Integer, primary_key=True, index=True)
+    lot_id = Column(String, nullable=False, index=True)
+    weight = Column(Float, nullable=True)
+    breed = Column(String, nullable=True)
+    birth_date = Column(DateTime, nullable=True)
+    health_status = Column(String, nullable=True)
+    feed_type = Column(String, nullable=True)
+    batch_id = Column(String, nullable=True, index=True)
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    def __repr__(self):
+        return f"<CattleRecord(lot_id='{self.lot_id}', weight={self.weight}, breed='{self.breed}')>"
 
 class CleaningRule(Base):
     """Model for storing data cleaning rules."""
