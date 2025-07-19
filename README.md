@@ -66,28 +66,79 @@ python -m db.init_db
 
 ## 🚀 Quick Start
 
-### 1. Start the Backend Server
+### Method 1: Using the Quick Start Script (Recommended)
 
 ```bash
-python api_server/api_router.py --host 0.0.0.0 --port 9000
+# Clone the repository
+git clone https://github.com/Ziyan0219/DataHerd.git
+cd DataHerd
+
+# Run the quick start script
+./start.sh
 ```
 
-### 2. Access the Web Interface
+The script will automatically:
+- Create a virtual environment
+- Install dependencies
+- Copy environment configuration
+- Initialize the database
+- Start the server
 
-Open your browser and navigate to `http://localhost:9000`
+### Method 2: Manual Setup
 
-### 3. Configure API Key
+#### 1. Clone the Repository
 
-1. Click on "Settings" in the top navigation
-2. Enter your OpenAI API key
-3. Click "Save Configuration"
+```bash
+git clone https://github.com/Ziyan0219/DataHerd.git
+cd DataHerd
+```
 
-### 4. Start Cleaning Data
+#### 2. Create Virtual Environment
 
-1. Navigate to the "Clean Data" tab
-2. Enter your batch ID and client name
-3. Describe your cleaning rules in natural language
-4. Preview changes or apply rules directly
+```bash
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
+
+#### 3. Install Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+#### 4. Environment Configuration
+
+```bash
+cp .env.example .env
+# Edit .env file with your configuration
+```
+
+#### 5. Start the Application
+
+```bash
+python3 start.py
+```
+
+### Method 3: Development Mode
+
+For development with auto-reload:
+
+```bash
+python3 start.py --reload --log-level DEBUG
+```
+
+### Method 4: Custom Configuration
+
+```bash
+python3 start.py --host 127.0.0.1 --port 8000 --skip-frontend
+```
+
+## 🌐 Accessing the Application
+
+Once started, the application will be available at:
+- **Web Interface**: http://localhost:9000
+- **API Documentation**: http://localhost:9000/docs
+- **Health Check**: http://localhost:9000/health
 
 ## 📖 Usage Guide
 
@@ -196,7 +247,7 @@ GitHub: [@Ziyan0219](https://github.com/Ziyan0219)
 
 ## 🙏 Acknowledgments
 
-- Built on the foundation of MateGenPro framework
+- Built with modern AI and data processing technologies
 - Designed specifically for Elanco's cattle data management needs
 - Powered by OpenAI's language models for intelligent rule processing
 

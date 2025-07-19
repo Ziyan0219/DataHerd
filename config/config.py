@@ -3,7 +3,10 @@ import sys
 import os
 from sqlalchemy import create_engine
 from sqlalchemy.exc import OperationalError
+from dotenv import load_dotenv
 
+# Load environment variables
+load_dotenv()
 
 # 获取项目的根目录路径
 base_path = os.path.dirname(os.path.abspath(__file__))
@@ -24,7 +27,7 @@ def setup_logging():
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 
     # 创建一个handler，用于写入日志文件
-    log_file_path = os.path.join(base_path, 'mategen_runtime.log')
+    log_file_path = os.path.join(base_path, 'dataherd_runtime.log')
     file_handler = logging.FileHandler(log_file_path)  # 使用完整路径指定日志文件名
     file_handler.setFormatter(formatter)  # 设置日志格式
 
@@ -37,18 +40,25 @@ def setup_logging():
     logger.addHandler(console_handler)
 
 
-username = 'root'
-database_name = 'DataHerd'
-password = "Xzy580021*"
+# Database configuration from environment variables
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./dataherd.db")
+
+# For backward compatibility, support MySQL configuration
+username = os.getenv("DB_USERNAME", "root")
+database_name = os.getenv("DB_NAME", "DataHerd")
+password = os.getenv("DB_PASSWORD", "Xzy580021*")
 
 # 检查环境变量USE_DOCKER，若不存在或为False，则使用相对路径挂载静态文件
 if os.getenv("USE_DOCKER") == "True":
     hostname = 'db'  # Docker环境
 else:
-    hostname = 'localhost'  # 个人环境开发配置
+    hostname = os.getenv("DB_HOST", "localhost")  # 个人环境开发配置
 
-
-SQLALCHEMY_DATABASE_URI = f"mysql+pymysql://{username}:{password}@{hostname}/{database_name}?charset=utf8mb4"
+# Use DATABASE_URL if provided, otherwise construct MySQL URL
+if DATABASE_URL.startswith("sqlite"):
+    SQLALCHEMY_DATABASE_URI = DATABASE_URL
+else:
+    SQLALCHEMY_DATABASE_URI = DATABASE_URL or f"mysql+pymysql://{username}:{password}@{hostname}/{database_name}?charset=utf8mb4"
 
 assistant_instructions = """
 You are DataHerd, an intelligent cattle data cleaning agent designed to streamline and automate data quality processes for Elanco.

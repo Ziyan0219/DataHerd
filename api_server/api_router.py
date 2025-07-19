@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from fastapi.staticfiles import StaticFiles
-from fastapi import HTTPException, Body
+from fastapi import HTTPException, Body, Depends
 import uvicorn
 import json
 import argparse
@@ -14,17 +14,7 @@ from fastapi.responses import RedirectResponse
 from fastapi import FastAPI, File, UploadFile, Form
 from typing import List, Optional
 import shutil
-from server.utils import (SessionLocal,
-                          check_and_initialize_db,
-                          upsert_agent_by_user_id,
-                          )
-from server.identity_verification.utils import validate_api_key
-from sse_starlette.sse import EventSourceResponse
-from db.base_model import (
-                           DbBase,
-                           MessageModel,
-                           ThreadModel,
-                           )
+from server.utils import SessionLocal, check_and_initialize_db, get_db
 from sqlalchemy import func
 import os
 from dotenv import load_dotenv, find_dotenv
@@ -339,59 +329,6 @@ def mount_app_routes(app: FastAPI):
             return {"status": 200, "data": report_data}
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to generate report: {e}")
-
-    @app.get("/api/conversation", tags=["Chat"], summary="Get all chat sessions")
-    def get_conversation():
-        from server.utils import SessionLocal
-        from db.base_model import ThreadModel, SecretModel
-        db_session = SessionLocal()
-        try:
-            user_id = "dataherd_user"
-            agent = db_session.query(SecretModel).filter(SecretModel.user_id == user_id).first()
-            if agent:
-                assis_id = agent.assis_id
-                results = db_session.query(ThreadModel.id, ThreadModel.conversation_name) \
-                    .filter(ThreadModel.agent_id == assis_id, ThreadModel.conversation_name != "new_chat") \
-                    .order_by(ThreadModel.updated_at.desc()).all()
-                data = [{"id": result.id, "conversation_name": result.conversation_name} for result in results]
-                return {"status": 200, "data": {"message": data}}
-        except Exception:
-            raise HTTPException(status_code=500, detail="Internal server error.")
-        finally:
-            db_session.close()
-
-    from db_interface import DBConfig, insert_db_config, update_db_config, get_all_databases, \
-        delete_db_config
-
-    @app.post("/api/create_db_connection", tags=["Database"],
-              summary="Create database connection for cattle data")
-    def db_create(db_config: DBConfig = Body(...)):
-        try:
-            database_id = insert_db_config(db_config)
-            return {"status": 200, "data": {"message": "Database connection established",
-                                            "db_info_id": database_id}}
-        except Exception as e:
-            raise HTTPException(status_code=500, detail="Failed to create database connection.")
-
-    @app.get("/api/show_all_databases", tags=["Database"], summary="Get all database connections")
-    def list_databases():
-        try:
-            databases = get_all_databases()
-            return {"status": 200, "data": databases}
-        except Exception as e:
-            raise HTTPException(status_code=500, detail="Failed to retrieve databases.")
-
-    @app.delete("/api/delete_db_connection/{db_info_id}", tags=["Database"], summary="Delete database connection")
-    def delete_db_connection(db_info_id: str):
-        try:
-            success = delete_db_config(db_info_id)
-            if not success:
-                raise HTTPException(status_code=404, detail="Database configuration not found")
-            return {"status": 200, "data": {"message": "Database configuration deleted successfully"}}
-        except HTTPException as http_ex:
-            raise http_ex
-        except Exception as e:
-            raise HTTPException(status_code=500, detail="Internal server error.")
 
 
 def run_api(host, port):
