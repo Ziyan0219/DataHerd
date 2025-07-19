@@ -31,42 +31,23 @@ DataHerd is built on a modern, scalable architecture:
 
 ## 🛠️ Installation
 
-### 1. Clone the Repository
+### Option 1: Automated Installation (Recommended)
 
 ```bash
 git clone https://github.com/Ziyan0219/DataHerd.git
 cd DataHerd
+./install.sh
 ```
 
-### 2. Backend Setup
+The installation script will automatically:
+- Check Python version requirements
+- Create a virtual environment
+- Install all dependencies
+- Set up environment configuration
+- Initialize the database
+- Build the frontend (if Node.js/pnpm available)
 
-```bash
-# Install Python dependencies
-pip install -r requirements.txt
-
-# Set up environment variables
-cp .env.example .env
-# Edit .env file with your configuration
-```
-
-### 3. Frontend Setup
-
-```bash
-cd dataherd-frontend
-pnpm install
-pnpm run build
-```
-
-### 4. Database Initialization
-
-```bash
-# Initialize the database
-python -m db.init_db
-```
-
-## 🚀 Quick Start
-
-### Method 1: Using the Quick Start Script (Recommended)
+### Option 2: Quick Start Script
 
 ```bash
 # Clone the repository
@@ -77,14 +58,7 @@ cd DataHerd
 ./start.sh
 ```
 
-The script will automatically:
-- Create a virtual environment
-- Install dependencies
-- Copy environment configuration
-- Initialize the database
-- Start the server
-
-### Method 2: Manual Setup
+### Option 3: Manual Installation
 
 #### 1. Clone the Repository
 
@@ -96,8 +70,8 @@ cd DataHerd
 #### 2. Create Virtual Environment
 
 ```bash
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+python3 -m venv dataherd_env
+source dataherd_env/bin/activate  # On Windows: dataherd_env\Scripts\activate
 ```
 
 #### 3. Install Dependencies
@@ -113,7 +87,23 @@ cp .env.example .env
 # Edit .env file with your configuration
 ```
 
-#### 5. Start the Application
+#### 5. Initialize Database
+
+```bash
+# Initialize the database
+python -m db.init_db
+```
+
+#### 6. Build Frontend (Optional)
+
+```bash
+cd dataherd-frontend
+pnpm install
+pnpm run build
+cd ..
+```
+
+#### 7. Start the Application
 
 ```bash
 python3 start.py
