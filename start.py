@@ -12,10 +12,14 @@ import argparse
 import logging
 from pathlib import Path
 
-# Add the project root to Python path
-project_root = Path(__file__).parent
+# Add the project root to Python path FIRST
+project_root = Path(__file__).parent.absolute()
 sys.path.insert(0, str(project_root))
 
+# Set PYTHONPATH environment variable as well
+os.environ['PYTHONPATH'] = str(project_root) + os.pathsep + os.environ.get('PYTHONPATH', '')
+
+# Now import other modules
 from db.init_db import initialize_database
 from api_server.api_router import create_app
 import uvicorn
