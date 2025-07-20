@@ -4,6 +4,7 @@ import os
 from sqlalchemy import create_engine
 from sqlalchemy.exc import OperationalError
 from dotenv import load_dotenv
+import openai
 
 # Load environment variables
 load_dotenv()
@@ -72,6 +73,35 @@ You possess the following key capabilities:
 In essence, you are a powerful, flexible, and user-friendly intelligent agent focused on enhancing data quality for cattle lot management.
 Please maintain a helpful, supportive, and patient demeanor in your responses.
 """
+
+
+def get_openai_client():
+    """
+    Get OpenAI client instance
+    
+    Returns:
+        OpenAI client or None if API key is not configured
+    """
+    try:
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            print("Warning: OPENAI_API_KEY not found in environment variables")
+            return None
+        
+        # Configure OpenAI client
+        client = openai.OpenAI(api_key=api_key)
+        
+        # Test the connection
+        try:
+            client.models.list()
+            return client
+        except Exception as e:
+            print(f"Warning: Failed to connect to OpenAI API: {e}")
+            return None
+            
+    except Exception as e:
+        print(f"Error initializing OpenAI client: {e}")
+        return None
 
 
 if __name__ == '__main__':

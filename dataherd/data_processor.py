@@ -1,556 +1,458 @@
+#!/usr/bin/env python3
 """
 DataHerd Data Processor
-Handles data cleaning operations for cattle lot management with NLP integration
+
+This module handles data loading, cleaning, preview, and rollback operations
+for cattle data management.
 """
 
 import pandas as pd
 import numpy as np
-import logging
-from typing import Dict, List, Any, Optional, Tuple
-from datetime import datetime, timedelta
-import re
 import json
+import logging
 import uuid
-from .nlp_processor import NLPProcessor, ParsedRule, RuleType
+from datetime import datetime
+from typing import Dict, Any, List, Optional, Tuple
+from pathlib import Path
+import tempfile
+import os
+
+from .nlp_processor import NLPProcessor, ParsedRule
+from .rule_manager import RuleManager
+from db.models import CattleRecord, BatchInfo, OperationLog
+from db.base import SessionLocal
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 class DataProcessor:
-    """Main data processing class for cattle data cleaning with NLP support"""
+    """Data processor for cattle data cleaning operations"""
     
     def __init__(self):
-        self.processed_batches = {}
-        self.cleaning_history = []
+        """Initialize the data processor"""
         self.nlp_processor = NLPProcessor()
-        self.preview_cache = {}
-        self.operation_logs = []
+        self.rule_manager = RuleManager()
+        self.data_cache = {}  # Cache for loaded data
+        self.backup_cache = {}  # Cache for data backups
+    
+    def load_data(self, file_path: str, batch_id: str) -> Dict[str, Any]:
+        """
+        Load data from file and store in database
         
-    def load_data(self, file_path: str, batch_id: str) -> pd.DataFrame:
-        """Load data from file"""
+        Args:
+            file_path: Path to the data file (CSV, Excel)
+            batch_id: Unique identifier for the batch
+            
+        Returns:
+            Dictionary with loading results
+        """
         try:
+            # Load data based on file type
             if file_path.endswith('.csv'):
                 df = pd.read_csv(file_path)
             elif file_path.endswith(('.xlsx', '.xls')):
                 df = pd.read_excel(file_path)
             else:
-                raise ValueError(f"Unsupported file format: {file_path}")
+                raise ValueError(f"Unsupported file type: {file_path}")
             
-            logger.info(f"Loaded {len(df)} records for batch {batch_id}")
-            return df
+            # Validate data structure
+            required_columns = ['lot_id', 'weight', 'breed', 'birth_date', 'health_status']
+            missing_columns = [col for col in required_columns if col not in df.columns]
+            if missing_columns:
+                raise ValueError(f"Missing required columns: {missing_columns}")
             
-        except Exception as e:
-            logger.error(f"Error loading data: {str(e)}")
-            raise
-    
-    def process_natural_language_rules(self, rule_text: str, client_context: str = "") -> List[ParsedRule]:
-        """
-        Process natural language rules using NLP
-        
-        Args:
-            rule_text: Natural language description of cleaning rules
-            client_context: Additional context about the client
+            # Store data in cache
+            self.data_cache[batch_id] = df.copy()
             
-        Returns:
-            List of parsed rules
-        """
-        try:
-            parsed_rules = self.nlp_processor.parse_natural_language_rule(rule_text, client_context)
-            logger.info(f"Processed {len(parsed_rules)} rules from natural language input")
-            return parsed_rules
-        except Exception as e:
-            logger.error(f"Error processing natural language rules: {str(e)}")
-            raise
-    
-    def preview_cleaning_operation(self, batch_id: str, natural_language_rules: str, client_name: Optional[str] = None) -> Dict[str, Any]:
-        """
-        Preview data cleaning operation without applying changes.
-        
-        Args:
-            batch_id: Identifier for the data batch
-            natural_language_rules: Natural language description of cleaning rules
-            client_name: Optional client name for specific rule adjustments
-            
-        Returns:
-            Dictionary containing preview results
-        """
-        try:
-            # Generate sample data for preview (in real implementation, load actual data)
-            df = self._generate_sample_data()
-            
-            # Process natural language rules
-            parsed_rules = self.process_natural_language_rules(natural_language_rules, client_name or "")
-            
-            # Generate preview
-            preview_results = self.preview_changes(df, parsed_rules, batch_id)
-            
-            return preview_results
-            
-        except Exception as e:
-            logger.error(f"Error in preview_cleaning_operation: {str(e)}")
-            raise Exception(f"Preview operation failed: {str(e)}")
-    
-    def preview_changes(self, df: pd.DataFrame, parsed_rules: List[ParsedRule], batch_id: str) -> Dict[str, Any]:
-        """
-        Preview changes that would be made by applying rules
-        
-        Args:
-            df: Input DataFrame
-            parsed_rules: List of parsed rules
-            batch_id: Unique identifier for this batch
-            
-        Returns:
-            Dictionary with preview information
-        """
-        preview_results = {
-            'batch_id': batch_id,
-            'original_count': len(df),
-            'rules_applied': len(parsed_rules),
-            'potential_changes': [],
-            'issues_found': [],
-            'summary': {},
-            'confidence_scores': []
-        }
-        
-        # Apply each rule and collect potential changes
-        for rule in parsed_rules:
-            try:
-                if rule.rule_type == RuleType.VALIDATION:
-                    issues = self._preview_validation(df, rule)
-                    preview_results['issues_found'].extend(issues)
-                
-                elif rule.rule_type == RuleType.STANDARDIZATION:
-                    changes = self._preview_standardization(df, rule)
-                    preview_results['potential_changes'].extend(changes)
-                
-                elif rule.rule_type == RuleType.CLEANING:
-                    changes = self._preview_cleaning(df, rule)
-                    preview_results['potential_changes'].extend(changes)
-                
-                elif rule.rule_type == RuleType.ESTIMATION:
-                    changes = self._preview_estimation(df, rule)
-                    preview_results['potential_changes'].extend(changes)
-                
-                preview_results['confidence_scores'].append({
-                    'rule': rule.description,
-                    'confidence': rule.confidence
-                })
-                
-            except Exception as e:
-                logger.error(f"Error previewing rule {rule.description}: {str(e)}")
-                continue
-        
-        # Generate summary
-        preview_results['summary'] = {
-            'total_issues': len(preview_results['issues_found']),
-            'total_changes': len(preview_results['potential_changes']),
-            'avg_confidence': np.mean([score['confidence'] for score in preview_results['confidence_scores']]) if preview_results['confidence_scores'] else 0,
-            'high_confidence_changes': len([c for c in preview_results['potential_changes'] if c.get('confidence', 0) > 0.8]),
-            'rules_processed': len(parsed_rules)
-        }
-        
-        # Cache preview for later application
-        self.preview_cache[batch_id] = {
-            'df': df.copy(),
-            'rules': parsed_rules,
-            'preview': preview_results,
-            'timestamp': datetime.now()
-        }
-        
-        return preview_results
-    
-    def apply_cleaning_rules(self, batch_id: str, cleaning_rules: str, apply_permanently: bool = False) -> Dict[str, Any]:
-        """
-        Apply cleaning rules to the specified batch.
-        
-        Args:
-            batch_id: Identifier for the data batch
-            cleaning_rules: Natural language description of cleaning rules
-            apply_permanently: Whether to save changes permanently
-            
-        Returns:
-            Dictionary containing operation results
-        """
-        try:
-            # Generate operation log ID
-            operation_id = str(uuid.uuid4())
-            
-            # If we have cached preview data, use it
-            if batch_id in self.preview_cache:
-                results = self.apply_changes(batch_id)
-            else:
-                # Generate sample data and process rules
-                df = self._generate_sample_data()
-                parsed_rules = self.process_natural_language_rules(cleaning_rules)
-                preview = self.preview_changes(df, parsed_rules, batch_id)
-                results = self.apply_changes(batch_id)
-            
-            # Create operation log
-            operation_log = {
-                "operation_id": operation_id,
-                "batch_id": batch_id,
-                "rules_applied": cleaning_rules,
-                "permanent": apply_permanently,
-                "timestamp": datetime.now().isoformat(),
-                "status": "completed",
-                "changes_made": {
-                    "flagged_records": len([c for c in results['changes_applied'] if c.get('rule_type') == 'validation']),
-                    "deleted_records": len([c for c in results['changes_applied'] if c.get('suggested') == 'remove']),
-                    "modified_records": len([c for c in results['changes_applied'] if c.get('rule_type') in ['standardization', 'estimation']])
-                }
-            }
-            
-            # Store operation log for potential rollback
-            self.operation_logs.append(operation_log)
+            # Save batch info to database
+            self._save_batch_info(batch_id, file_path, len(df))
             
             return {
-                "operation_id": operation_id,
-                "status": "success",
-                "message": "Data cleaning completed successfully",
-                "changes_summary": operation_log["changes_made"],
-                "results": results
+                'status': 'success',
+                'batch_id': batch_id,
+                'record_count': len(df),
+                'columns': list(df.columns),
+                'message': f"Data loaded successfully: {len(df)} records"
             }
             
         except Exception as e:
-            logger.error(f"Error in apply_cleaning_rules: {str(e)}")
-            raise Exception(f"Data cleaning failed: {str(e)}")
+            logger.error(f"Data loading failed: {e}")
+            return {
+                'status': 'error',
+                'batch_id': batch_id,
+                'message': f"Data loading failed: {str(e)}"
+            }
     
-    def apply_changes(self, batch_id: str, approved_changes: List[str] = None) -> Dict[str, Any]:
+    def preview_cleaning_operation(self, batch_id: str, rule_text: str, 
+                                 client_name: str = "") -> Dict[str, Any]:
         """
-        Apply approved changes from preview
+        Preview data cleaning operation without applying changes
         
         Args:
             batch_id: Batch identifier
-            approved_changes: List of change IDs to apply (None = apply all)
+            rule_text: Natural language rule description
+            client_name: Client name for context
             
         Returns:
-            Results of applying changes
-        """
-        if batch_id not in self.preview_cache:
-            raise ValueError(f"No preview found for batch {batch_id}")
-        
-        cached_data = self.preview_cache[batch_id]
-        df = cached_data['df'].copy()
-        rules = cached_data['rules']
-        preview = cached_data['preview']
-        
-        results = {
-            'batch_id': batch_id,
-            'original_count': len(df),
-            'changes_applied': [],
-            'issues_resolved': [],
-            'final_data': df,
-            'summary': {}
-        }
-        
-        # Apply changes
-        changes_to_apply = preview['potential_changes']
-        if approved_changes:
-            changes_to_apply = [c for c in changes_to_apply if c.get('id') in approved_changes]
-        
-        for change in changes_to_apply:
-            try:
-                self._apply_single_change(df, change)
-                results['changes_applied'].append(change)
-            except Exception as e:
-                logger.error(f"Error applying change: {str(e)}")
-                continue
-        
-        # Update final data
-        results['final_data'] = df
-        results['final_count'] = len(df)
-        
-        # Generate summary
-        results['summary'] = {
-            'changes_applied': len(results['changes_applied']),
-            'records_modified': len(set(c.get('row_id') for c in results['changes_applied'])),
-            'final_count': len(df),
-            'data_quality_improvement': self._calculate_quality_improvement(preview, results)
-        }
-        
-        # Store in processing history
-        self.cleaning_history.append({
-            'batch_id': batch_id,
-            'timestamp': datetime.now(),
-            'rules_applied': len(rules),
-            'changes_made': len(results['changes_applied']),
-            'final_count': len(df)
-        })
-        
-        return results
-    
-    def rollback_operation(self, batch_id: str, operation_log_id: str) -> Dict[str, Any]:
-        """
-        Rollback a previous data cleaning operation.
-        
-        Args:
-            batch_id: Identifier for the data batch
-            operation_log_id: ID of the operation to rollback
-            
-        Returns:
-            Dictionary containing rollback status
+            Dictionary with preview results
         """
         try:
-            # Find the operation log
-            operation_log = None
-            for log in self.operation_logs:
-                if log["operation_id"] == operation_log_id and log["batch_id"] == batch_id:
-                    operation_log = log
-                    break
-            
-            if not operation_log:
-                raise Exception(f"Operation log {operation_log_id} not found for batch {batch_id}")
-            
-            # Use cached original data if available
-            if batch_id in self.preview_cache:
-                rollback_data = self.rollback_changes(batch_id)
-                
-                rollback_result = {
-                    "operation_id": operation_log_id,
-                    "batch_id": batch_id,
-                    "rollback_status": "success",
-                    "message": "Operation successfully rolled back",
-                    "original_operation": {
-                        "timestamp": operation_log["timestamp"],
-                        "rules": operation_log["rules_applied"]
-                    },
-                    "rollback_timestamp": datetime.now().isoformat(),
-                    "rollback_data": rollback_data
+            # Get data from cache
+            if batch_id not in self.data_cache:
+                return {
+                    'status': 'error',
+                    'message': f"Batch {batch_id} not found in cache"
                 }
-                
-                # Mark operation as rolled back
-                operation_log["status"] = "rolled_back"
-                operation_log["rollback_timestamp"] = datetime.now().isoformat()
-                
-                return rollback_result
-            else:
-                raise Exception("No cached data available for rollback")
+            
+            df = self.data_cache[batch_id].copy()
+            
+            # Parse the rule
+            parsed_rule = self.nlp_processor.parse_natural_language_rule(rule_text, client_name)
+            
+            # Apply rule to generate preview
+            preview_results = self._apply_rule_preview(df, parsed_rule)
+            
+            # Calculate quality metrics
+            quality_metrics = self._calculate_quality_metrics(df, preview_results)
+            
+            return {
+                'status': 'success',
+                'batch_id': batch_id,
+                'rule': parsed_rule.description,
+                'preview_results': preview_results,
+                'quality_metrics': quality_metrics,
+                'confidence': parsed_rule.confidence,
+                'message': f"Preview generated: {len(preview_results['changes'])} changes identified"
+            }
             
         except Exception as e:
-            logger.error(f"Error in rollback_operation: {str(e)}")
-            raise Exception(f"Rollback failed: {str(e)}")
+            logger.error(f"Preview generation failed: {e}")
+            return {
+                'status': 'error',
+                'message': f"Preview generation failed: {str(e)}"
+            }
     
-    def rollback_changes(self, batch_id: str) -> Dict[str, Any]:
+    def apply_cleaning_rules(self, batch_id: str, rule_text: str, 
+                           client_name: str = "", save_rule: bool = False) -> Dict[str, Any]:
         """
-        Rollback changes for a specific batch
+        Apply cleaning rules to data
         
         Args:
             batch_id: Batch identifier
+            rule_text: Natural language rule description
+            client_name: Client name for context
+            save_rule: Whether to save the rule permanently
             
         Returns:
-            Original data and rollback status
+            Dictionary with operation results
         """
-        if batch_id not in self.preview_cache:
-            raise ValueError(f"No cached data found for batch {batch_id}")
-        
-        cached_data = self.preview_cache[batch_id]
-        original_df = cached_data['df'].copy()
-        
-        return {
-            'batch_id': batch_id,
-            'status': 'rolled_back',
-            'original_data': original_df,
-            'rollback_timestamp': datetime.now()
-        }
-    
-    def get_operation_history(self, batch_id: Optional[str] = None) -> List[Dict[str, Any]]:
-        """
-        Get operation history for a specific batch or all batches.
-        
-        Args:
-            batch_id: Optional batch ID to filter results
+        try:
+            # Create backup before applying changes
+            self._create_backup(batch_id)
             
-        Returns:
-            List of operation logs
-        """
-        if batch_id:
-            return [log for log in self.operation_logs if log["batch_id"] == batch_id]
-        return self.operation_logs.copy()
-    
-    def _generate_sample_data(self) -> pd.DataFrame:
-        """Generate sample cattle data for testing"""
-        np.random.seed(42)
-        
-        sample_data = {
-            'lot_id': [f'LOT{str(i).zfill(3)}' for i in range(1, 101)],
-            'weight': np.random.normal(850, 200, 100).astype(int),
-            'breed': np.random.choice(['Angus', 'angus', 'Hereford', 'hereford', 'Holstein', 'holstein'], 100),
-            'birth_date': pd.date_range('2022-01-01', '2024-12-31', periods=100).strftime('%Y-%m-%d')
-        }
-        
-        # Introduce some data quality issues
-        sample_data['weight'][5] = 45  # Too low
-        sample_data['weight'][15] = 2000  # Too high
-        sample_data['breed'][10] = 'angus'  # Wrong case
-        sample_data['breed'][20] = 'HEREFORD'  # Wrong case
-        sample_data['birth_date'][25] = 'invalid'  # Invalid date
-        sample_data['lot_id'][30] = sample_data['lot_id'][29]  # Duplicate
-        
-        return pd.DataFrame(sample_data)
-    
-    def _preview_validation(self, df: pd.DataFrame, rule: ParsedRule) -> List[Dict]:
-        """Preview validation rule"""
-        issues = []
-        
-        if rule.field == 'weight':
-            min_weight = rule.parameters.get('min_weight', 400)
-            max_weight = rule.parameters.get('max_weight', 1500)
+            # Get data from cache
+            if batch_id not in self.data_cache:
+                return {
+                    'status': 'error',
+                    'message': f"Batch {batch_id} not found in cache"
+                }
             
-            for idx, row in df.iterrows():
-                weight = row.get(rule.field)
-                if pd.isna(weight) or weight < min_weight or weight > max_weight:
-                    issues.append({
-                        'id': f"validation_{rule.field}_{idx}",
-                        'row_id': idx,
-                        'field': rule.field,
-                        'value': weight,
-                        'issue': f'Weight outside normal range ({min_weight}-{max_weight} lbs)',
-                        'confidence': rule.confidence,
-                        'rule_type': 'validation'
-                    })
-        
-        elif rule.field == 'birth_date':
-            current_date = pd.Timestamp.now()
-            max_age_years = rule.parameters.get('max_age_years', 3)
+            df = self.data_cache[batch_id]
             
-            for idx, row in df.iterrows():
-                birth_date = row.get(rule.field)
-                try:
-                    date_obj = pd.to_datetime(birth_date)
-                    age_years = (current_date - date_obj).days / 365.25
-                    
-                    if age_years < 0 or age_years > max_age_years:
-                        issues.append({
-                            'id': f"validation_{rule.field}_{idx}",
-                            'row_id': idx,
-                            'field': rule.field,
-                            'value': birth_date,
-                            'issue': f'Unrealistic age: {age_years:.1f} years',
-                            'confidence': rule.confidence,
-                            'rule_type': 'validation'
-                        })
-                except:
-                    issues.append({
-                        'id': f"validation_{rule.field}_{idx}",
-                        'row_id': idx,
-                        'field': rule.field,
-                        'value': birth_date,
-                        'issue': 'Invalid date format',
-                        'confidence': rule.confidence,
-                        'rule_type': 'validation'
-                    })
-        
-        return issues
-    
-    def _preview_standardization(self, df: pd.DataFrame, rule: ParsedRule) -> List[Dict]:
-        """Preview standardization rule"""
-        changes = []
-        
-        if rule.field == 'breed':
-            breed_mapping = {
-                'angus': 'Angus',
-                'hereford': 'Hereford',
-                'holstein': 'Holstein',
-                'charolais': 'Charolais',
-                'simmental': 'Simmental',
-                'limousin': 'Limousin'
+            # Parse the rule
+            parsed_rule = self.nlp_processor.parse_natural_language_rule(rule_text, client_name)
+            
+            # Apply the rule
+            changes = self._apply_rule_to_data(df, parsed_rule)
+            
+            # Save rule if requested
+            if save_rule:
+                rule_id = self.rule_manager.save_rule(parsed_rule, rule_text, client_name)
+            else:
+                rule_id = None
+            
+            # Log the operation
+            operation_id = self._log_operation(batch_id, parsed_rule, changes, client_name)
+            
+            return {
+                'status': 'success',
+                'batch_id': batch_id,
+                'operation_id': operation_id,
+                'rule_id': rule_id,
+                'changes_applied': len(changes),
+                'message': f"Cleaning operation completed: {len(changes)} changes applied"
             }
             
-            for idx, row in df.iterrows():
-                original_breed = row.get(rule.field)
-                if pd.notna(original_breed):
-                    standardized = breed_mapping.get(original_breed.lower(), original_breed.title())
-                    if standardized != original_breed:
-                        changes.append({
-                            'id': f"standardization_{rule.field}_{idx}",
-                            'row_id': idx,
-                            'field': rule.field,
-                            'original': original_breed,
-                            'suggested': standardized,
-                            'reason': 'Breed name standardization',
-                            'confidence': rule.confidence,
-                            'rule_type': 'standardization'
-                        })
-        
-        return changes
+        except Exception as e:
+            logger.error(f"Cleaning operation failed: {e}")
+            return {
+                'status': 'error',
+                'message': f"Cleaning operation failed: {str(e)}"
+            }
     
-    def _preview_cleaning(self, df: pd.DataFrame, rule: ParsedRule) -> List[Dict]:
-        """Preview cleaning rule"""
+    def rollback_operation(self, batch_id: str, operation_id: str) -> Dict[str, Any]:
+        """
+        Rollback a previous cleaning operation
+        
+        Args:
+            batch_id: Batch identifier
+            operation_id: Operation identifier to rollback
+            
+        Returns:
+            Dictionary with rollback results
+        """
+        try:
+            # Check if backup exists
+            if batch_id not in self.backup_cache:
+                return {
+                    'status': 'error',
+                    'message': f"No backup found for batch {batch_id}"
+                }
+            
+            # Restore data from backup
+            self.data_cache[batch_id] = self.backup_cache[batch_id].copy()
+            
+            # Log the rollback
+            self._log_rollback(batch_id, operation_id)
+            
+            return {
+                'status': 'success',
+                'batch_id': batch_id,
+                'operation_id': operation_id,
+                'message': "Operation rolled back successfully"
+            }
+            
+        except Exception as e:
+            logger.error(f"Rollback failed: {e}")
+            return {
+                'status': 'error',
+                'message': f"Rollback failed: {str(e)}"
+            }
+    
+    def _apply_rule_preview(self, df: pd.DataFrame, parsed_rule: ParsedRule) -> Dict[str, Any]:
+        """Apply rule to generate preview without modifying data"""
         changes = []
         
-        if 'duplicate' in rule.action.lower():
-            based_on = rule.parameters.get('based_on', ['lot_id'])
-            keep = rule.parameters.get('keep', 'first')
-            
-            duplicates = df.duplicated(subset=based_on, keep=keep)
-            duplicate_indices = df[duplicates].index.tolist()
-            
-            for idx in duplicate_indices:
-                changes.append({
-                    'id': f"cleaning_duplicate_{idx}",
-                    'row_id': idx,
-                    'field': 'record',
-                    'original': 'duplicate_record',
-                    'suggested': 'remove',
-                    'reason': f'Duplicate based on {", ".join(based_on)}',
-                    'confidence': rule.confidence,
-                    'rule_type': 'cleaning'
-                })
+        if parsed_rule.rule_type.value == 'validation':
+            changes = self._apply_validation_preview(df, parsed_rule)
+        elif parsed_rule.rule_type.value == 'standardization':
+            changes = self._apply_standardization_preview(df, parsed_rule)
+        elif parsed_rule.rule_type.value == 'cleaning':
+            changes = self._apply_cleaning_preview(df, parsed_rule)
         
-        return changes
+        return {
+            'changes': changes,
+            'total_records': len(df),
+            'affected_records': len(changes)
+        }
     
-    def _preview_estimation(self, df: pd.DataFrame, rule: ParsedRule) -> List[Dict]:
-        """Preview estimation rule"""
+    def _apply_validation_preview(self, df: pd.DataFrame, parsed_rule: ParsedRule) -> List[Dict[str, Any]]:
+        """Generate preview for validation rules"""
         changes = []
+        field = parsed_rule.field
         
-        # Simple estimation based on available data
-        valid_values = df[df[rule.field].notna()][rule.field]
-        if len(valid_values) > 0:
-            if rule.field == 'weight':
-                estimated_value = valid_values.median()
-            else:
-                estimated_value = valid_values.mode().iloc[0] if len(valid_values.mode()) > 0 else valid_values.median()
+        if field == 'weight':
+            # Weight validation
+            min_weight = parsed_rule.parameters.get('min_weight', 400)
+            max_weight = parsed_rule.parameters.get('max_weight', 1500)
             
             for idx, row in df.iterrows():
-                if pd.isna(row.get(rule.field)):
+                weight = row['weight']
+                if weight < min_weight or weight > max_weight:
                     changes.append({
-                        'id': f"estimation_{rule.field}_{idx}",
-                        'row_id': idx,
-                        'field': rule.field,
-                        'original': None,
-                        'suggested': estimated_value,
-                        'reason': 'Estimated based on similar records',
-                        'confidence': rule.confidence * 0.7,  # Lower confidence for estimations
-                        'rule_type': 'estimation'
+                        'row_index': idx,
+                        'field': field,
+                        'original_value': weight,
+                        'suggested_action': 'flag_as_error',
+                        'reason': f"Weight {weight} outside valid range ({min_weight}-{max_weight})"
                     })
         
         return changes
     
-    def _apply_single_change(self, df: pd.DataFrame, change: Dict):
-        """Apply a single change to the DataFrame"""
-        row_id = change['row_id']
-        field = change['field']
+    def _apply_standardization_preview(self, df: pd.DataFrame, parsed_rule: ParsedRule) -> List[Dict[str, Any]]:
+        """Generate preview for standardization rules"""
+        changes = []
+        field = parsed_rule.field
         
-        if change['rule_type'] == 'standardization':
-            df.at[row_id, field] = change['suggested']
-        elif change['rule_type'] == 'cleaning' and change['suggested'] == 'remove':
-            df.drop(row_id, inplace=True)
-        elif change['rule_type'] == 'estimation':
-            df.at[row_id, field] = change['suggested']
+        if field == 'breed':
+            # Breed standardization
+            for idx, row in df.iterrows():
+                breed = row['breed']
+                if breed and breed != breed.title():
+                    changes.append({
+                        'row_index': idx,
+                        'field': field,
+                        'original_value': breed,
+                        'suggested_value': breed.title(),
+                        'action': 'standardize_case'
+                    })
+        
+        return changes
     
-    def _calculate_quality_improvement(self, preview: Dict, results: Dict) -> float:
-        """Calculate data quality improvement percentage"""
-        total_issues = preview['summary']['total_issues']
-        changes_applied = len(results['changes_applied'])
+    def _apply_cleaning_preview(self, df: pd.DataFrame, parsed_rule: ParsedRule) -> List[Dict[str, Any]]:
+        """Generate preview for cleaning rules"""
+        changes = []
+        field = parsed_rule.field
         
-        if total_issues == 0:
-            return 100.0
+        if field == 'birth_date':
+            # Date cleaning
+            for idx, row in df.iterrows():
+                birth_date = row['birth_date']
+                if pd.isna(birth_date) or birth_date == '':
+                    changes.append({
+                        'row_index': idx,
+                        'field': field,
+                        'original_value': birth_date,
+                        'suggested_action': 'remove_record',
+                        'reason': 'Missing birth date'
+                    })
         
-        improvement = (changes_applied / total_issues) * 100
-        return min(improvement, 100.0)
+        return changes
     
-    def get_processing_history(self) -> List[Dict]:
-        """Get history of all processing operations"""
-        return self.cleaning_history
-
+    def _apply_rule_to_data(self, df: pd.DataFrame, parsed_rule: ParsedRule) -> List[Dict[str, Any]]:
+        """Apply rule to actual data and return changes made"""
+        changes = []
+        
+        if parsed_rule.rule_type.value == 'validation':
+            changes = self._apply_validation_rule(df, parsed_rule)
+        elif parsed_rule.rule_type.value == 'standardization':
+            changes = self._apply_standardization_rule(df, parsed_rule)
+        elif parsed_rule.rule_type.value == 'cleaning':
+            changes = self._apply_cleaning_rule(df, parsed_rule)
+        
+        return changes
+    
+    def _apply_validation_rule(self, df: pd.DataFrame, parsed_rule: ParsedRule) -> List[Dict[str, Any]]:
+        """Apply validation rule to data"""
+        changes = []
+        field = parsed_rule.field
+        
+        if field == 'weight':
+            min_weight = parsed_rule.parameters.get('min_weight', 400)
+            max_weight = parsed_rule.parameters.get('max_weight', 1500)
+            
+            # Add validation flag column
+            df['weight_validation_flag'] = (df['weight'] < min_weight) | (df['weight'] > max_weight)
+            
+            flagged_count = df['weight_validation_flag'].sum()
+            changes.append({
+                'type': 'validation_flag',
+                'field': field,
+                'records_affected': int(flagged_count),
+                'details': f"Flagged {flagged_count} records with weight outside {min_weight}-{max_weight} range"
+            })
+        
+        return changes
+    
+    def _apply_standardization_rule(self, df: pd.DataFrame, parsed_rule: ParsedRule) -> List[Dict[str, Any]]:
+        """Apply standardization rule to data"""
+        changes = []
+        field = parsed_rule.field
+        
+        if field == 'breed':
+            # Standardize breed names
+            original_breeds = df['breed'].copy()
+            df['breed'] = df['breed'].str.title()
+            
+            changed_count = (original_breeds != df['breed']).sum()
+            changes.append({
+                'type': 'standardization',
+                'field': field,
+                'records_affected': int(changed_count),
+                'details': f"Standardized {changed_count} breed names to proper case"
+            })
+        
+        return changes
+    
+    def _apply_cleaning_rule(self, df: pd.DataFrame, parsed_rule: ParsedRule) -> List[Dict[str, Any]]:
+        """Apply cleaning rule to data"""
+        changes = []
+        field = parsed_rule.field
+        
+        if field == 'birth_date':
+            # Remove records with missing birth dates
+            original_count = len(df)
+            df.dropna(subset=['birth_date'], inplace=True)
+            removed_count = original_count - len(df)
+            
+            changes.append({
+                'type': 'cleaning',
+                'field': field,
+                'records_affected': removed_count,
+                'details': f"Removed {removed_count} records with missing birth dates"
+            })
+        
+        return changes
+    
+    def _calculate_quality_metrics(self, df: pd.DataFrame, preview_results: Dict[str, Any]) -> Dict[str, Any]:
+        """Calculate data quality metrics"""
+        total_records = len(df)
+        affected_records = preview_results['affected_records']
+        
+        return {
+            'total_records': total_records,
+            'affected_records': affected_records,
+            'quality_score': max(0, 100 - (affected_records / total_records * 100)) if total_records > 0 else 100,
+            'completeness': (df.notna().sum() / len(df) * 100).to_dict() if len(df) > 0 else {}
+        }
+    
+    def _create_backup(self, batch_id: str):
+        """Create backup of current data state"""
+        if batch_id in self.data_cache:
+            self.backup_cache[batch_id] = self.data_cache[batch_id].copy()
+    
+    def _save_batch_info(self, batch_id: str, file_path: str, record_count: int):
+        """Save batch information to database"""
+        try:
+            with SessionLocal() as session:
+                batch_info = BatchInfo(
+                    batch_id=batch_id,
+                    file_path=file_path,
+                    record_count=record_count,
+                    created_at=datetime.now()
+                )
+                session.add(batch_info)
+                session.commit()
+        except Exception as e:
+            logger.error(f"Failed to save batch info: {e}")
+    
+    def _log_operation(self, batch_id: str, parsed_rule: ParsedRule, 
+                      changes: List[Dict[str, Any]], client_name: str) -> str:
+        """Log operation to database"""
+        try:
+            operation_id = str(uuid.uuid4())
+            with SessionLocal() as session:
+                operation_log = OperationLog(
+                    operation_id=operation_id,
+                    batch_id=batch_id,
+                    rule_type=parsed_rule.rule_type.value,
+                    rule_description=parsed_rule.description,
+                    changes_made=json.dumps(changes),
+                    client_name=client_name,
+                    created_at=datetime.now()
+                )
+                session.add(operation_log)
+                session.commit()
+            return operation_id
+        except Exception as e:
+            logger.error(f"Failed to log operation: {e}")
+            return str(uuid.uuid4())
+    
+    def _log_rollback(self, batch_id: str, operation_id: str):
+        """Log rollback operation"""
+        try:
+            with SessionLocal() as session:
+                rollback_log = OperationLog(
+                    operation_id=str(uuid.uuid4()),
+                    batch_id=batch_id,
+                    rule_type='rollback',
+                    rule_description=f'Rollback of operation {operation_id}',
+                    changes_made='{}',
+                    created_at=datetime.now()
+                )
+                session.add(rollback_log)
+                session.commit()
+        except Exception as e:
+            logger.error(f"Failed to log rollback: {e}") 

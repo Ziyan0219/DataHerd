@@ -33,51 +33,53 @@ class CleaningRule(Base):
     """Model for storing data cleaning rules."""
     __tablename__ = 'cleaning_rules'
     
-    id = Column(String, primary_key=True, index=True)
-    client_name = Column(String, index=True, nullable=False)  # Elanco client name
-    rule_name = Column(String, nullable=False)  # e.g., 'Weight Anomaly Check'
-    rule_description = Column(Text, nullable=True)  # Natural language description of the rule
-    rule_json = Column(Text, nullable=False)  # JSON representation of the rule logic
+    rule_id = Column(String, primary_key=True, index=True)
+    name = Column(String, nullable=False)  # e.g., 'Weight Anomaly Check'
+    description = Column(Text, nullable=True)  # Natural language description of the rule
+    rule_type = Column(String, nullable=False)  # validation, standardization, cleaning, estimation
+    field = Column(String, nullable=True)  # Field to apply rule to
+    condition = Column(Text, nullable=True)  # Python condition string
+    action = Column(String, nullable=True)  # Action to take
+    parameters = Column(Text, nullable=True)  # JSON parameters
+    confidence = Column(Float, default=0.0)  # Rule confidence score
+    client_context = Column(String, index=True, nullable=True)  # Client context
     is_permanent = Column(Boolean, default=False)  # Whether this rule is permanently applied
+    is_active = Column(Boolean, default=True)  # Whether rule is active
+    usage_count = Column(Integer, default=0)  # Number of times used
+    success_rate = Column(Float, default=0.0)  # Success rate percentage
+    last_used = Column(DateTime, nullable=True)  # Last usage timestamp
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
     def __repr__(self):
-        return f"<CleaningRule(id='{self.id}', client_name='{self.client_name}', rule_name='{self.rule_name}')>"
+        return f"<CleaningRule(rule_id='{self.rule_id}', name='{self.name}', client_context='{self.client_context}')>"
 
 class OperationLog(Base):
     """Model for storing operation logs."""
     __tablename__ = 'operation_logs'
     
-    id = Column(String, primary_key=True, index=True)
+    operation_id = Column(String, primary_key=True, index=True)
     batch_id = Column(String, nullable=False)  # ID of the batch being cleaned
-    lot_id = Column(String, nullable=True)  # ID of the specific lot if applicable
-    operator_id = Column(String, nullable=False)  # User who performed the operation
-    operation_type = Column(String, nullable=False)  # e.g., 'Apply Rule', 'Rollback', 'Preview'
-    rule_id = Column(String, ForeignKey('cleaning_rules.id'), nullable=True)  # Rule applied, if any
-    operation_details = Column(Text, nullable=True)  # Details of the operation
-    operation_result = Column(Text, nullable=True)  # Result of the operation
-    timestamp = Column(DateTime, default=func.now())
-
-    rule = relationship("CleaningRule")
+    rule_type = Column(String, nullable=True)  # Type of rule applied
+    rule_description = Column(Text, nullable=True)  # Description of the rule
+    changes_made = Column(Text, nullable=True)  # JSON string of changes made
+    client_name = Column(String, nullable=True)  # Client name
+    created_at = Column(DateTime, default=func.now())
 
     def __repr__(self):
-        return f"<OperationLog(id='{self.id}', batch_id='{self.batch_id}', operation_type='{self.operation_type}')>"
+        return f"<OperationLog(operation_id='{self.operation_id}', batch_id='{self.batch_id}', rule_type='{self.rule_type}')>"
 
 class BatchInfo(Base):
     """Model for storing batch information."""
     __tablename__ = 'batch_info'
     
-    id = Column(String, primary_key=True, index=True)
-    batch_name = Column(String, nullable=False)
-    client_name = Column(String, index=True, nullable=False)
-    data_source_path = Column(String, nullable=True)  # Path to the raw data file/source
-    status = Column(String, default='pending')  # e.g., 'pending', 'cleaned', 'in_progress'
+    batch_id = Column(String, primary_key=True, index=True)
+    file_path = Column(String, nullable=True)  # Path to the raw data file/source
+    record_count = Column(Integer, default=0)  # Number of records in batch
     created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
     def __repr__(self):
-        return f"<BatchInfo(id='{self.id}', batch_name='{self.batch_name}', client_name='{self.client_name}')>"
+        return f"<BatchInfo(batch_id='{self.batch_id}', record_count={self.record_count})>"
 
 class LotInfo(Base):
     """Model for storing lot information."""
@@ -97,4 +99,34 @@ class LotInfo(Base):
 
     def __repr__(self):
         return f"<LotInfo(id='{self.id}', lot_name='{self.lot_name}', batch_id='{self.batch_id}')>"
+
+
+class RuleApplication(Base):
+    """Model for tracking rule applications."""
+    __tablename__ = 'rule_applications'
+    
+    application_id = Column(String, primary_key=True, index=True)
+    rule_id = Column(String, ForeignKey('cleaning_rules.rule_id'), nullable=False)
+    batch_id = Column(String, nullable=False)
+    applied_at = Column(DateTime, default=func.now())
+    success = Column(Boolean, default=True)
+    changes_made = Column(Integer, default=0)
+
+    def __repr__(self):
+        return f"<RuleApplication(application_id='{self.application_id}', rule_id='{self.rule_id}', batch_id='{self.batch_id}')>"
+
+
+class ClientTemplate(Base):
+    """Model for storing client-specific rule templates."""
+    __tablename__ = 'client_templates'
+    
+    template_id = Column(String, primary_key=True, index=True)
+    client_name = Column(String, nullable=False, index=True)
+    template_name = Column(String, nullable=False)
+    template_rules = Column(Text, nullable=False)  # JSON string of rule IDs
+    created_at = Column(DateTime, default=func.now())
+    is_active = Column(Boolean, default=True)
+
+    def __repr__(self):
+        return f"<ClientTemplate(template_id='{self.template_id}', client_name='{self.client_name}', template_name='{self.template_name}')>"
 

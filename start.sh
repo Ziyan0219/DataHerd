@@ -30,7 +30,7 @@ if [ ! -f ".env" ]; then
     echo "⚠️  .env file not found, copying from .env.example"
     cp .env.example .env
     echo "📝 Please edit .env file with your configuration before running again"
-    exit 1
+    exit 1h
 fi
 
 # Start the application
