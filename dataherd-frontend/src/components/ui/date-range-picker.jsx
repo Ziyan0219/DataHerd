@@ -1,10 +1,9 @@
 import * as React from "react"
-import { addDays, format } from "date-fns"
 import { Calendar as CalendarIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { Calendar } from "@/components/ui/calendar"
+import { Input } from "@/components/ui/input"
 import {
   Popover,
   PopoverContent,
@@ -16,6 +15,34 @@ export function DatePickerWithRange({
   date,
   setDate,
 }) {
+  const [startDate, setStartDate] = React.useState('')
+  const [endDate, setEndDate] = React.useState('')
+
+  React.useEffect(() => {
+    if (startDate && endDate) {
+      setDate({
+        from: new Date(startDate),
+        to: new Date(endDate)
+      })
+    } else if (startDate && !endDate) {
+      setDate({
+        from: new Date(startDate),
+        to: null
+      })
+    } else {
+      setDate(null)
+    }
+  }, [startDate, endDate, setDate])
+
+  const formatDateDisplay = () => {
+    if (date?.from && date?.to) {
+      return `${date.from.toLocaleDateString()} - ${date.to.toLocaleDateString()}`
+    } else if (date?.from) {
+      return date.from.toLocaleDateString()
+    }
+    return "Pick a date range"
+  }
+
   return (
     <div className={cn("grid gap-2", className)}>
       <Popover>
@@ -29,29 +56,28 @@ export function DatePickerWithRange({
             )}
           >
             <CalendarIcon className="mr-2 h-4 w-4" />
-            {date?.from ? (
-              date.to ? (
-                <>
-                  {format(date.from, "LLL dd, y")} -{" "}
-                  {format(date.to, "LLL dd, y")}
-                </>
-              ) : (
-                format(date.from, "LLL dd, y")
-              )
-            ) : (
-              <span>Pick a date range</span>
-            )}
+            <span>{formatDateDisplay()}</span>
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-auto p-0" align="start">
-          <Calendar
-            initialFocus
-            mode="range"
-            defaultMonth={date?.from}
-            selected={date}
-            onSelect={setDate}
-            numberOfMonths={2}
-          />
+        <PopoverContent className="w-auto p-4" align="start">
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Start Date</label>
+              <Input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">End Date</label>
+              <Input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+              />
+            </div>
+          </div>
         </PopoverContent>
       </Popover>
     </div>

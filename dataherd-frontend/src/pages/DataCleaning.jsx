@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -21,7 +21,11 @@ import {
   Info,
   Sparkles,
   Database,
-  FileText
+  FileText,
+  Check,
+  X,
+  Edit,
+  Keyboard
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -33,38 +37,46 @@ const sampleData = [
   { id: 5, lotId: "LOT005", weight: 780, breed: "Hereford", birthDate: "2023-05-08", status: "original" }
 ]
 
-const previewChanges = [
+const initialPreviewChanges = [
   { 
+    id: 1,
     lotId: "LOT002", 
     field: "weight", 
     original: "45", 
     suggested: "450", 
     reason: "Weight appears to be missing a digit (typical calf weight 400-500 lbs)",
-    confidence: 0.85
+    confidence: 0.85,
+    status: "pending" // pending, accepted, rejected, edited
   },
   { 
+    id: 2,
     lotId: "LOT002", 
     field: "breed", 
     original: "angus", 
     suggested: "Angus", 
     reason: "Standardize breed capitalization",
-    confidence: 0.95
+    confidence: 0.95,
+    status: "pending"
   },
   { 
+    id: 3,
     lotId: "LOT004", 
     field: "breed", 
     original: "hereford", 
     suggested: "Hereford", 
     reason: "Standardize breed capitalization",
-    confidence: 0.95
+    confidence: 0.95,
+    status: "pending"
   },
   { 
+    id: 4,
     lotId: "LOT004", 
     field: "birthDate", 
     original: "invalid", 
     suggested: "2023-03-01", 
     reason: "Estimated based on weight and typical growth patterns",
-    confidence: 0.65
+    confidence: 0.65,
+    status: "pending"
   }
 ]
 
@@ -76,6 +88,62 @@ export default function DataCleaning() {
   const [showPreview, setShowPreview] = useState(false)
   const [progress, setProgress] = useState(0)
   const [activeTab, setActiveTab] = useState('input')
+  const [previewChanges, setPreviewChanges] = useState([])
+  const [editingChange, setEditingChange] = useState(null)
+  const [editValue, setEditValue] = useState('')
+
+  // Handle individual change actions
+  const handleAcceptChange = (changeId) => {
+    setPreviewChanges(prev => prev.map(change => 
+      change.id === changeId ? { ...change, status: 'accepted' } : change
+    ))
+    toast.success('Change accepted')
+  }
+
+  const handleRejectChange = (changeId) => {
+    setPreviewChanges(prev => prev.map(change => 
+      change.id === changeId ? { ...change, status: 'rejected' } : change
+    ))
+    toast.success('Change rejected')
+  }
+
+  const handleEditChange = (change) => {
+    setEditingChange(change.id)
+    setEditValue(change.suggested)
+  }
+
+  const handleSaveEdit = (changeId) => {
+    if (editValue.trim() === '') {
+      toast.error('Value cannot be empty')
+      return
+    }
+    
+    setPreviewChanges(prev => prev.map(change => 
+      change.id === changeId ? { 
+        ...change, 
+        suggested: editValue.trim(), 
+        status: 'edited' 
+      } : change
+    ))
+    setEditingChange(null)
+    setEditValue('')
+    toast.success('Change updated')
+  }
+
+  const handleCancelEdit = () => {
+    setEditingChange(null)
+    setEditValue('')
+  }
+
+  const handleAcceptAllChanges = () => {
+    setPreviewChanges(prev => prev.map(change => ({ ...change, status: 'accepted' })))
+    toast.success('All changes accepted')
+  }
+
+  const handleRejectAllChanges = () => {
+    setPreviewChanges(prev => prev.map(change => ({ ...change, status: 'rejected' })))
+    toast.success('All changes rejected')
+  }
 
   const handlePreview = async () => {
     if (!batchId || !rules) {
@@ -94,6 +162,7 @@ export default function DataCleaning() {
           setIsProcessing(false)
           setShowPreview(true)
           setActiveTab('preview')
+          setPreviewChanges(initialPreviewChanges) // Load preview changes
           toast.success('Preview generated successfully!')
           return 100
         }
@@ -103,12 +172,21 @@ export default function DataCleaning() {
   }
 
   const handleApplyChanges = async () => {
+    const acceptedChanges = previewChanges.filter(change => 
+      change.status === 'accepted' || change.status === 'edited'
+    )
+    
+    if (acceptedChanges.length === 0) {
+      toast.error('No changes selected to apply')
+      return
+    }
+
     setIsProcessing(true)
     
     // Simulate applying changes
     setTimeout(() => {
       setIsProcessing(false)
-      toast.success('Changes applied successfully!')
+      toast.success(`${acceptedChanges.length} changes applied successfully!`)
       setActiveTab('results')
     }, 2000)
   }
@@ -117,6 +195,72 @@ export default function DataCleaning() {
     toast.info('Changes rolled back successfully!')
     setShowPreview(false)
     setActiveTab('input')
+  }
+
+  const handleGenerateCleaningReport = async () => {
+    if (!batchId) {
+      toast.error('Batch ID is required to generate report')
+      return
+    }
+
+    setIsProcessing(true)
+    
+    try {
+      // Simulate report generation for data cleaning operation
+      const steps = [
+        'Collecting batch data...',
+        'Analyzing applied changes...',
+        'Calculating quality metrics...',
+        'Generating cleaning report...'
+      ]
+      
+      for (let i = 0; i < steps.length; i++) {
+        await new Promise(resolve => setTimeout(resolve, 800))
+        toast.info(steps[i])
+      }
+      
+      // Create comprehensive cleaning report data
+      const acceptedChanges = previewChanges.filter(c => c.status === 'accepted' || c.status === 'edited')
+      const reportData = {
+        batchId,
+        clientName: clientName || 'Unknown',
+        generatedAt: new Date().toISOString(),
+        summary: {
+          totalRecords: 2500,
+          changesProposed: previewChanges.length,
+          changesApplied: acceptedChanges.length,
+          qualityImprovement: '12.3%',
+          processingTime: '2.5 minutes'
+        },
+        ruleApplications: acceptedChanges.map(change => ({
+          lotId: change.lotId,
+          field: change.field,
+          originalValue: change.original,
+          newValue: change.suggested,
+          confidence: change.confidence,
+          reason: change.reason
+        })),
+        qualityMetrics: {
+          overallQualityScore: 95.2,
+          dataCompleteness: 98.1,
+          dataAccuracy: 94.5,
+          consistencyScore: 96.8
+        }
+      }
+      
+      // Log the report generation
+      console.log('Data Cleaning Report Generated:', reportData)
+      
+      setIsProcessing(false)
+      toast.success('Data cleaning report generated successfully! Report includes quality metrics, applied changes, and recommendations.')
+      
+      // Optionally navigate to reports page
+      // navigate('/reports') // Uncomment if you want to redirect to reports page
+      
+    } catch (error) {
+      setIsProcessing(false)
+      toast.error('Failed to generate report. Please try again.')
+    }
   }
 
   return (
@@ -321,17 +465,64 @@ export default function DataCleaning() {
                 <Alert>
                   <Info className="h-4 w-4" />
                   <AlertDescription>
-                    Found {previewChanges.length} potential improvements. Review each change and its confidence level.
+                    Found {previewChanges.length} potential improvements. Use the action buttons to accept, reject, or edit each change.
+                    <div className="mt-2 text-xs">
+                      💡 <strong>Tip:</strong> Press 'A' to accept, 'R' to reject, or 'E' to edit when hovering over a change.
+                    </div>
                   </AlertDescription>
                 </Alert>
 
+                {/* Summary Stats */}
+                <div className="grid grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg">
+                  <div className="text-center">
+                    <div className="text-lg font-semibold text-green-600">
+                      {previewChanges.filter(c => c.status === 'accepted').length}
+                    </div>
+                    <div className="text-xs text-gray-500">Accepted</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-lg font-semibold text-red-600">
+                      {previewChanges.filter(c => c.status === 'rejected').length}
+                    </div>
+                    <div className="text-xs text-gray-500">Rejected</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-lg font-semibold text-blue-600">
+                      {previewChanges.filter(c => c.status === 'edited').length}
+                    </div>
+                    <div className="text-xs text-gray-500">Edited</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-lg font-semibold text-gray-600">
+                      {previewChanges.filter(c => c.status === 'pending').length}
+                    </div>
+                    <div className="text-xs text-gray-500">Pending</div>
+                  </div>
+                </div>
+
                 <div className="space-y-4">
-                  {previewChanges.map((change, index) => (
-                    <div key={index} className="p-4 border rounded-lg">
+                  {previewChanges.map((change) => (
+                    <div 
+                      key={change.id} 
+                      className={`p-4 border rounded-lg transition-colors ${
+                        change.status === 'accepted' ? 'bg-green-50 border-green-200' :
+                        change.status === 'rejected' ? 'bg-red-50 border-red-200' :
+                        change.status === 'edited' ? 'bg-blue-50 border-blue-200' :
+                        'bg-white border-gray-200'
+                      }`}
+                    >
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center space-x-2">
                           <Badge variant="outline">{change.lotId}</Badge>
                           <Badge variant="secondary">{change.field}</Badge>
+                          {change.status !== 'pending' && (
+                            <Badge variant={
+                              change.status === 'accepted' ? 'default' :
+                              change.status === 'rejected' ? 'destructive' : 'secondary'
+                            }>
+                              {change.status}
+                            </Badge>
+                          )}
                         </div>
                         <div className="flex items-center space-x-2">
                           <span className="text-sm text-gray-500">
@@ -352,33 +543,122 @@ export default function DataCleaning() {
                           </div>
                         </div>
                         <div>
-                          <Label className="text-xs text-gray-500">Suggested</Label>
-                          <div className="p-2 bg-green-50 border border-green-200 rounded text-sm">
-                            {change.suggested}
-                          </div>
+                          <Label className="text-xs text-gray-500">
+                            {change.status === 'edited' ? 'Your Edit' : 'Suggested'}
+                          </Label>
+                          {editingChange === change.id ? (
+                            <div className="flex space-x-2">
+                              <Input
+                                value={editValue}
+                                onChange={(e) => setEditValue(e.target.value)}
+                                className="text-sm"
+                                autoFocus
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') handleSaveEdit(change.id)
+                                  if (e.key === 'Escape') handleCancelEdit()
+                                }}
+                              />
+                              <Button size="sm" onClick={() => handleSaveEdit(change.id)}>
+                                <Check className="w-3 h-3" />
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={handleCancelEdit}>
+                                <X className="w-3 h-3" />
+                              </Button>
+                            </div>
+                          ) : (
+                            <div className="p-2 bg-green-50 border border-green-200 rounded text-sm">
+                              {change.suggested}
+                            </div>
+                          )}
                         </div>
                       </div>
                       
-                      <div className="text-sm text-gray-600">
+                      <div className="text-sm text-gray-600 mb-3">
                         <strong>Reason:</strong> {change.reason}
                       </div>
+                      
+                      {editingChange !== change.id && (
+                        <div className="flex space-x-2">
+                          {change.status === 'pending' && (
+                            <>
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                onClick={() => handleAcceptChange(change.id)}
+                                className="text-green-600 hover:bg-green-50"
+                              >
+                                <Check className="w-3 h-3 mr-1" />
+                                Accept
+                              </Button>
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                onClick={() => handleRejectChange(change.id)}
+                                className="text-red-600 hover:bg-red-50"
+                              >
+                                <X className="w-3 h-3 mr-1" />
+                                Reject
+                              </Button>
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                onClick={() => handleEditChange(change)}
+                              >
+                                <Edit className="w-3 h-3 mr-1" />
+                                Edit
+                              </Button>
+                            </>
+                          )}
+                          {change.status !== 'pending' && (
+                            <Button 
+                              size="sm" 
+                              variant="ghost"
+                              onClick={() => handleAcceptChange(change.id)}
+                              className="text-gray-600"
+                            >
+                              Reset to Pending
+                            </Button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
 
-                <div className="flex space-x-2 pt-4">
-                  <Button onClick={handleApplyChanges} disabled={isProcessing}>
-                    <CheckCircle className="w-4 h-4 mr-2" />
-                    Apply All Changes
-                  </Button>
-                  <Button variant="outline" onClick={handleRollback}>
-                    <RotateCcw className="w-4 h-4 mr-2" />
-                    Cancel
-                  </Button>
-                  <Button variant="outline">
-                    <Save className="w-4 h-4 mr-2" />
-                    Save as Rule
-                  </Button>
+                <div className="flex justify-between pt-4">
+                  <div className="flex space-x-2">
+                    <Button 
+                      variant="outline"
+                      onClick={handleAcceptAllChanges}
+                      size="sm"
+                    >
+                      <CheckCircle className="w-4 h-4 mr-2" />
+                      Accept All
+                    </Button>
+                    <Button 
+                      variant="outline"
+                      onClick={handleRejectAllChanges}
+                      size="sm"
+                    >
+                      <X className="w-4 h-4 mr-2" />
+                      Reject All
+                    </Button>
+                  </div>
+                  
+                  <div className="flex space-x-2">
+                    <Button onClick={handleApplyChanges} disabled={isProcessing}>
+                      <CheckCircle className="w-4 h-4 mr-2" />
+                      Apply Selected Changes
+                    </Button>
+                    <Button variant="outline" onClick={handleRollback}>
+                      <RotateCcw className="w-4 h-4 mr-2" />
+                      Cancel
+                    </Button>
+                    <Button variant="outline">
+                      <Save className="w-4 h-4 mr-2" />
+                      Save as Rule
+                    </Button>
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -425,7 +705,10 @@ export default function DataCleaning() {
                   <Download className="w-4 h-4 mr-2" />
                   Download Cleaned Data
                 </Button>
-                <Button variant="outline">
+                <Button 
+                  variant="outline"
+                  onClick={handleGenerateCleaningReport}
+                >
                   <FileText className="w-4 h-4 mr-2" />
                   Generate Report
                 </Button>

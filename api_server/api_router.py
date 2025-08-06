@@ -28,7 +28,7 @@ import uuid
 import shutil
 import argparse
 import uvicorn
-from typing import Optional
+from typing import Optional, List
 from server.utils import SessionLocal, check_and_initialize_db, get_db
 from sqlalchemy import func
 from dotenv import load_dotenv, find_dotenv
@@ -36,6 +36,7 @@ from db.init_db import initialize_database
 from dataherd.data_processor import DataProcessor
 from dataherd.rule_manager import RuleManager
 from dataherd.report_generator import ReportGenerator
+# from dataherd.langgraph_workflow import create_dataherd_workflow  # Temporarily disabled
 
 load_dotenv(find_dotenv())
 
@@ -87,6 +88,13 @@ class GenerateReportRequest(BaseModel):
     end_date: Optional[str] = Body(None, description="Optional end date (YYYY-MM-DD) to filter report")
 
 
+class AgenticWorkflowRequest(BaseModel):
+    batch_id: str = Body(..., description="Unique batch identifier")
+    client_context: str = Body("Default", description="Client context for rule customization")
+    data: Optional[dict] = Body(None, description="Optional initial data for processing")
+    rules: Optional[List[str]] = Body(None, description="List of natural language rules to apply")
+
+
 class CodeExecutionRequest(BaseModel):
     python_code: str
     thread_id: str
@@ -125,84 +133,40 @@ def create_app():
         allow_headers=["*"],
     )
 
-    # 挂载路由
-    mount_app_routes(app)
-
-    # 重定向到 index.html
-    @app.get("/", include_in_schema=False)
-    def read_root():
-        return RedirectResponse(url='/index.html')
-
-    # Health check endpoint
+    # Health check endpoint - needs to be before catch-all
     @app.get("/health", tags=["Health"])
     def health_check():
         return {"status": "healthy", "message": "DataHerd API server is running"}
 
-    # 挂载 前端 项目构建的前端静态文件夹 (对接前端静态文件的入口)
+    # 挂载路由
+    mount_app_routes(app)
+
+    # SPA fallback - catch all routes and serve index.html for React Router
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def serve_spa(full_path: str):
+        """Serve the React SPA for all routes (including root)"""
+        frontend_dist_path = os.path.join(current_dir, "dataherd-frontend", "dist")
+        index_path = os.path.join(frontend_dist_path, "index.html")
+        
+        # For static assets, try to serve them directly
+        if "." in full_path and not full_path.endswith(".html"):
+            asset_path = os.path.join(frontend_dist_path, full_path)
+            if os.path.exists(asset_path):
+                return FileResponse(asset_path)
+        
+        # For all other routes (including root), serve index.html for React Router
+        if os.path.exists(index_path):
+            return FileResponse(index_path)
+        else:
+            return {"message": "DataHerd frontend not built. Run 'npm run build' in dataherd-frontend directory."}
+
+
+    # Mount static assets for production builds
     if os.getenv("USE_DOCKER") == "True":
         app.mount("/", StaticFiles(directory="/app/static/dist"), name="static")
     else:
-        # 检查前端构建目录是否存在，如果不存在则使用前端源码目录
-        frontend_dist_path = os.path.join(current_dir, "dataherd-frontend", "dist")
-        frontend_public_path = os.path.join(current_dir, "dataherd-frontend", "public")
-        
-        if os.path.exists(frontend_dist_path):
-            app.mount("/", StaticFiles(directory=frontend_dist_path), name="static")
-        elif os.path.exists(frontend_public_path):
-            app.mount("/", StaticFiles(directory=frontend_public_path), name="static")
-        else:
-            # 创建一个简单的静态目录作为临时解决方案
-            temp_static_dir = os.path.join(current_dir, "temp_static")
-            os.makedirs(temp_static_dir, exist_ok=True)
-            
-            # 创建一个简单的index.html
-            index_html_path = os.path.join(temp_static_dir, "index.html")
-            if not os.path.exists(index_html_path):
-                with open(index_html_path, 'w') as f:
-                    f.write("""<!DOCTYPE html>
-<html>
-<head>
-    <title>DataHerd - Cattle Data Cleaning Agent</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 40px; }
-        .container { max-width: 800px; margin: 0 auto; }
-        .header { text-align: center; margin-bottom: 40px; }
-        .api-link { background: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>DataHerd - Intelligent Cattle Data Cleaning Agent</h1>
-            <p>AI-powered data cleaning platform for Elanco's cattle lot management operations</p>
-        </div>
-        <div>
-            <h2>API Documentation</h2>
-            <p>The DataHerd API server is running successfully!</p>
-            <p><a href="/docs" class="api-link">View API Documentation</a></p>
-            
-            <h2>Features</h2>
-            <ul>
-                <li>Natural Language Rule Processing</li>
-                <li>Intelligent Data Preview</li>
-                <li>Operation Rollback</li>
-                <li>Client-Specific Rules</li>
-                <li>Comprehensive Reporting</li>
-            </ul>
-            
-            <h2>Quick Start</h2>
-            <ol>
-                <li>Configure your OpenAI API key via <code>/api/set_api_key</code></li>
-                <li>Use <code>/api/clean_data</code> to process cattle data</li>
-                <li>Preview changes with <code>/api/preview_cleaning</code></li>
-                <li>Generate reports with <code>/api/generate_report</code></li>
-            </ol>
-        </div>
-    </div>
-</body>
-</html>""")
-            
-            app.mount("/", StaticFiles(directory=temp_static_dir), name="static")
+        # For local development, we'll handle static files in the catch-all route
+        pass
     return app
 
 
@@ -373,6 +337,11 @@ def mount_app_routes(app: FastAPI):
             }
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to generate report: {str(e)}")
+
+    # LangGraph workflow endpoints temporarily disabled for UI testing
+    # @app.post("/api/agentic_workflow", tags=["LangGraph Workflow"])
+    # @app.get("/api/workflow_status/{batch_id}", tags=["LangGraph Workflow"])
+    # @app.post("/api/workflow_test", tags=["LangGraph Workflow"])
 
 
 def run_api(host, port):

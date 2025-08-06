@@ -3,36 +3,32 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { 
   Plus, 
   Edit, 
-  Trash2, 
-  Copy, 
-  Play, 
-  Pause,
+  Trash2,
   Search,
-  Filter,
   Database,
   Sparkles,
   CheckCircle,
-  AlertCircle,
-  Clock
+  AlertCircle
 } from 'lucide-react'
 import { toast } from 'sonner'
 
 const sampleRules = [
   {
     id: 1,
-    name: "Weight Validation",
-    description: "Flag weights below 400 lbs or above 1500 lbs as potential errors",
+    name: "Weight Validation - Yearlings",
+    description: "Flag yearlings with weights below 400 lbs or above 900 lbs",
     client: "Elanco Primary",
     category: "Validation",
+    field: "weight",
+    condition: "< 400 or > 900",
+    action: "flag",
     isActive: true,
     isPermanent: true,
     lastUsed: "2025-01-19",
@@ -41,73 +37,247 @@ const sampleRules = [
   },
   {
     id: 2,
-    name: "Breed Standardization",
-    description: "Standardize breed names to proper capitalization and common naming conventions",
-    client: "All Clients",
-    category: "Standardization",
-    isActive: true,
-    isPermanent: true,
-    lastUsed: "2025-01-19",
-    usageCount: 32,
-    successRate: 98.7
-  },
-  {
-    id: 3,
-    name: "Date Format Validation",
-    description: "Ensure all birth dates are in YYYY-MM-DD format and within reasonable ranges",
-    client: "Elanco Secondary",
+    name: "Weight Validation - Adult Cattle",
+    description: "Flag adult cattle with weights below 800 lbs or above 2200 lbs",
+    client: "Elanco Primary", 
     category: "Validation",
-    isActive: false,
-    isPermanent: false,
-    lastUsed: "2025-01-15",
-    usageCount: 12,
-    successRate: 87.5
-  },
-  {
-    id: 4,
-    name: "Duplicate Removal",
-    description: "Remove duplicate entries based on lot ID and other identifying characteristics",
-    client: "Elanco Primary",
-    category: "Cleaning",
+    field: "weight",
+    condition: "< 800 or > 2200",
+    action: "flag",
     isActive: true,
     isPermanent: true,
     lastUsed: "2025-01-18",
-    usageCount: 28,
-    successRate: 96.1
+    usageCount: 67,
+    successRate: 96.8
+  },
+  {
+    id: 3,
+    name: "Breed Name Standardization",
+    description: "Standardize breed names to proper capitalization and common abbreviations",
+    client: "All Clients",
+    category: "Standardization", 
+    field: "breed",
+    condition: "non-standard case",
+    action: "standardize",
+    isActive: true,
+    isPermanent: true,
+    lastUsed: "2025-01-19",
+    usageCount: 89,
+    successRate: 98.7
+  },
+  {
+    id: 4,
+    name: "Birth Date Format Validation",
+    description: "Validate birth dates are in proper format and within reasonable range",
+    client: "All Clients",
+    category: "Validation",
+    field: "birth_date", 
+    condition: "invalid format",
+    action: "flag",
+    isActive: true,
+    isPermanent: true,
+    lastUsed: "2025-01-17",
+    usageCount: 34,
+    successRate: 91.2
   },
   {
     id: 5,
-    name: "Missing Value Handling",
-    description: "Flag or estimate missing values in critical fields like weight and breed",
+    name: "Future Birth Date Check",
+    description: "Flag cattle with birth dates in the future",
     client: "All Clients",
-    category: "Cleaning",
+    category: "Validation",
+    field: "birth_date",
+    condition: "future date", 
+    action: "flag",
     isActive: true,
     isPermanent: false,
-    lastUsed: "2025-01-17",
+    lastUsed: "2025-01-16",
+    usageCount: 12,
+    successRate: 100.0
+  },
+  {
+    id: 6,
+    name: "Duplicate Lot ID Detection",
+    description: "Flag duplicate lot IDs within the same batch",
+    client: "Elanco Secondary",
+    category: "Validation",
+    field: "lot_id",
+    condition: "duplicate",
+    action: "flag",
+    isActive: true,
+    isPermanent: true,
+    lastUsed: "2025-01-18",
+    usageCount: 23,
+    successRate: 87.5
+  },
+  {
+    id: 7,
+    name: "Health Status Standardization", 
+    description: "Standardize health status codes to approved values",
+    client: "All Clients",
+    category: "Standardization",
+    field: "health_status",
+    condition: "invalid status",
+    action: "standardize",
+    isActive: true,
+    isPermanent: false,
+    lastUsed: "2025-01-15",
+    usageCount: 56,
+    successRate: 93.8
+  },
+  {
+    id: 8,
+    name: "Age Consistency Check",
+    description: "Flag cattle where calculated age doesn't match birth date",
+    client: "Elanco Primary",
+    category: "Validation",
+    field: "age",
+    condition: "inconsistent with birth_date",
+    action: "flag",
+    isActive: false,
+    isPermanent: false,
+    lastUsed: "2025-01-10",
+    usageCount: 8,
+    successRate: 78.3
+  },
+  {
+    id: 9,
+    name: "Missing Weight Estimation",
+    description: "Estimate missing weights based on breed, age, and similar cattle",
+    client: "Elanco Secondary",
+    category: "Estimation", 
+    field: "weight",
+    condition: "missing",
+    action: "estimate",
+    isActive: true,
+    isPermanent: false,
+    lastUsed: "2025-01-14",
     usageCount: 19,
-    successRate: 82.3
+    successRate: 82.1
+  },
+  {
+    id: 10,
+    name: "Invalid Breed Name Cleanup",
+    description: "Remove or flag cattle records with clearly invalid breed names",
+    client: "All Clients",
+    category: "Cleaning",
+    field: "breed",
+    condition: "invalid breed",
+    action: "flag",
+    isActive: true,
+    isPermanent: true,
+    lastUsed: "2025-01-13",
+    usageCount: 41,
+    successRate: 89.7
+  },
+  {
+    id: 11,
+    name: "Lot ID Format Validation",
+    description: "Validate lot ID follows proper format (e.g., FARM123-LOT456)",
+    client: "Elanco Primary",
+    category: "Validation",
+    field: "lot_id",
+    condition: "invalid format",
+    action: "flag",
+    isActive: true,
+    isPermanent: true,
+    lastUsed: "2025-01-12",
+    usageCount: 28,
+    successRate: 94.6
+  },
+  {
+    id: 12,
+    name: "Calf Weight Validation",
+    description: "Flag calves (under 12 months) with weights above 600 lbs",
+    client: "All Clients", 
+    category: "Validation",
+    field: "weight",
+    condition: "> 600",
+    action: "flag",
+    isActive: true,
+    isPermanent: false,
+    lastUsed: "2025-01-11",
+    usageCount: 15,
+    successRate: 91.3
+  },
+  {
+    id: 13,
+    name: "Missing Birth Date Cleanup",
+    description: "Remove records with missing birth dates that cannot be estimated",
+    client: "Other",
+    category: "Cleaning",
+    field: "birth_date",
+    condition: "missing",
+    action: "remove",
+    isActive: false,
+    isPermanent: false,
+    lastUsed: "Never",
+    usageCount: 0,
+    successRate: null
+  },
+  {
+    id: 14,
+    name: "Breed Name Contains Numbers",
+    description: "Flag breed names that contain numeric characters",
+    client: "All Clients",
+    category: "Validation", 
+    field: "breed",
+    condition: "contains numbers",
+    action: "flag",
+    isActive: true,
+    isPermanent: false,
+    lastUsed: "2025-01-09",
+    usageCount: 7,
+    successRate: 85.7
+  },
+  {
+    id: 15,
+    name: "Health Status Missing Values",
+    description: "Flag records with missing health status for follow-up",
+    client: "Elanco Secondary",
+    category: "Validation",
+    field: "health_status", 
+    condition: "missing",
+    action: "flag",
+    isActive: true,
+    isPermanent: true,
+    lastUsed: "2025-01-08",
+    usageCount: 33,
+    successRate: 96.4
   }
 ]
 
-const categories = ["All", "Validation", "Standardization", "Cleaning", "Estimation"]
+const categories = ["Validation", "Standardization", "Cleaning", "Estimation"]
 const clients = ["All Clients", "Elanco Primary", "Elanco Secondary", "Other"]
+const fields = ["weight", "breed", "birth_date", "lot_id", "health_status", "age"]
+const conditions = {
+  weight: ["< value", "> value", "between values", "missing"],
+  breed: ["missing", "non-standard case", "invalid breed", "contains numbers"],
+  birth_date: ["missing", "invalid format", "future date", "too old"],
+  lot_id: ["missing", "duplicate", "invalid format"],
+  health_status: ["missing", "invalid status"],
+  age: ["< value", "> value", "inconsistent with birth_date"]
+}
+const actions = ["flag", "remove", "standardize", "estimate", "validate", "correct"]
 
-export default function RuleManagement() {
+export default function RuleManagementSimple() {
   const [rules, setRules] = useState([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('All')
   const [selectedClient, setSelectedClient] = useState('All Clients')
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [editingRule, setEditingRule] = useState(null)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
-  const [basedOnRule, setBasedOnRule] = useState('')
+  
   const [newRule, setNewRule] = useState({
     name: '',
-    description: '',
     client: '',
     category: '',
+    field: '',
+    condition: '',
+    conditionValue: '',
+    action: '',
     isActive: true,
     isPermanent: false
   })
@@ -116,39 +286,14 @@ export default function RuleManagement() {
   useEffect(() => {
     try {
       console.log('RuleManagement: Initializing with sample data')
-      setRules(sampleRules || [])
+      setRules(sampleRules)
       setLoading(false)
     } catch (err) {
       console.error('RuleManagement: Initialization error:', err)
-      setError(err.message)
       setLoading(false)
+      toast.error('Failed to load rules')
     }
   }, [])
-
-  if (loading) {
-    return (
-      <div className="p-6 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="p-6">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <h2 className="text-lg font-semibold text-red-800">Error Loading Rules</h2>
-          <p className="text-red-600 mt-2">{error}</p>
-          <button 
-            onClick={() => window.location.reload()} 
-            className="mt-3 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-          >
-            Reload Page
-          </button>
-        </div>
-      </div>
-    )
-  }
 
   const filteredRules = rules.filter(rule => {
     const matchesSearch = rule.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -163,30 +308,45 @@ export default function RuleManagement() {
     try {
       console.log('Creating rule:', newRule)
       
-      if (!newRule.name || !newRule.description || !newRule.client || !newRule.category) {
+      if (!newRule.name || !newRule.client || !newRule.category || !newRule.field || !newRule.condition || !newRule.action) {
         toast.error('Please fill in all required fields')
         return
       }
 
+      const description = generateRuleDescription(newRule)
+      
       const rule = {
         id: Date.now(),
-        ...newRule,
+        name: newRule.name,
+        description,
+        client: newRule.client,
+        category: newRule.category,
+        field: newRule.field,
+        condition: newRule.condition + (newRule.conditionValue ? ` (${newRule.conditionValue})` : ''),
+        action: newRule.action,
+        isActive: newRule.isActive,
+        isPermanent: newRule.isPermanent,
         lastUsed: 'Never',
         usageCount: 0,
-        successRate: null // null means N/A - not yet used
+        successRate: null
       }
 
       console.log('New rule created:', rule)
-      setRules([...rules, rule])
+      setRules(prev => [...prev, rule])
+      
+      // Reset form
       setNewRule({
         name: '',
-        description: '',
         client: '',
         category: '',
+        field: '',
+        condition: '',
+        conditionValue: '',
+        action: '',
         isActive: true,
         isPermanent: false
       })
-      setBasedOnRule('')
+      
       setIsCreateDialogOpen(false)
       toast.success('Rule created successfully!')
     } catch (error) {
@@ -195,13 +355,30 @@ export default function RuleManagement() {
     }
   }
 
+  const generateRuleDescription = (rule) => {
+    const fieldName = rule.field.replace('_', ' ')
+    const actionText = {
+      flag: 'flag as error',
+      remove: 'remove record',
+      standardize: 'standardize value',
+      estimate: 'estimate missing value',
+      validate: 'validate format',
+      correct: 'correct value'
+    }
+    
+    return `${rule.action === 'flag' ? 'Flag' : rule.action.charAt(0).toUpperCase() + rule.action.slice(1)} records where ${fieldName} ${rule.condition}${rule.conditionValue ? ` ${rule.conditionValue}` : ''}`
+  }
+
   const handleEditRule = (rule) => {
     setEditingRule(rule)
     setNewRule({
       name: rule.name,
-      description: rule.description,
       client: rule.client,
       category: rule.category,
+      field: rule.field,
+      condition: rule.condition.split(' (')[0], // Remove value part
+      conditionValue: rule.condition.includes('(') ? rule.condition.split('(')[1]?.replace(')', '') : '',
+      action: rule.action,
       isActive: rule.isActive,
       isPermanent: rule.isPermanent
     })
@@ -209,47 +386,46 @@ export default function RuleManagement() {
   }
 
   const handleUpdateRule = () => {
-    if (!newRule.name || !newRule.description || !newRule.client || !newRule.category) {
-      toast.error('Please fill in all required fields')
-      return
-    }
+    try {
+      if (!newRule.name || !newRule.client || !newRule.category || !newRule.field || !newRule.condition || !newRule.action) {
+        toast.error('Please fill in all required fields')
+        return
+      }
 
-    setRules(rules.map(rule => 
-      rule.id === editingRule.id 
-        ? { ...rule, ...newRule }
-        : rule
-    ))
-    
-    setEditingRule(null)
-    setNewRule({
-      name: '',
-      description: '',
-      client: '',
-      category: '',
-      isActive: true,
-      isPermanent: false
-    })
-    setIsEditDialogOpen(false)
-    toast.success('Rule updated successfully!')
-  }
+      const description = generateRuleDescription(newRule)
+      
+      const updatedRule = {
+        ...editingRule,
+        name: newRule.name,
+        description,
+        client: newRule.client,
+        category: newRule.category,
+        field: newRule.field,
+        condition: newRule.condition + (newRule.conditionValue ? ` (${newRule.conditionValue})` : ''),
+        action: newRule.action,
+        isActive: newRule.isActive,
+        isPermanent: newRule.isPermanent
+      }
 
-  const handleBasedOnRuleChange = (ruleId) => {
-    if (!ruleId) {
-      setBasedOnRule('')
-      return
-    }
-    
-    const baseRule = rules.find(r => r.id.toString() === ruleId)
-    if (baseRule) {
+      setRules(rules.map(rule => rule.id === editingRule.id ? updatedRule : rule))
+      
+      setEditingRule(null)
       setNewRule({
-        name: `${baseRule.name} (Copy)`,
-        description: baseRule.description,
-        client: baseRule.client,
-        category: baseRule.category,
+        name: '',
+        client: '',
+        category: '',
+        field: '',
+        condition: '',
+        conditionValue: '',
+        action: '',
         isActive: true,
         isPermanent: false
       })
-      setBasedOnRule(ruleId)
+      setIsEditDialogOpen(false)
+      toast.success('Rule updated successfully!')
+    } catch (error) {
+      console.error('Error updating rule:', error)
+      toast.error('Error updating rule: ' + error.message)
     }
   }
 
@@ -265,6 +441,13 @@ export default function RuleManagement() {
     toast.success('Rule deleted successfully!')
   }
 
+  if (loading) {
+    return (
+      <div className="p-6 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    )
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -273,9 +456,11 @@ export default function RuleManagement() {
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Rule Management</h1>
           <p className="text-gray-600 mt-1">
-            Create, manage, and monitor your data cleaning rules
+            Create and manage data cleaning rules with simple parameter selection
           </p>
         </div>
+        
+        {/* Create Rule Dialog */}
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
           <DialogTrigger asChild>
             <Button>
@@ -287,22 +472,44 @@ export default function RuleManagement() {
             <DialogHeader>
               <DialogTitle>Create New Rule</DialogTitle>
               <DialogDescription>
-                Define a new data cleaning rule with natural language description
+                Create a data cleaning rule by selecting parameters
               </DialogDescription>
             </DialogHeader>
+            
             <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Rule Name *</Label>
+                  <Input
+                    placeholder="e.g., Weight Validation"
+                    value={newRule.name}
+                    onChange={(e) => setNewRule({...newRule, name: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Category *</Label>
+                  <Select value={newRule.category} onValueChange={(value) => setNewRule({...newRule, category: value})}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categories.map(cat => (
+                        <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
               <div className="space-y-2">
-                <Label htmlFor="basedOnRule">Base on Existing Rule (Optional)</Label>
-                <Select value={basedOnRule} onValueChange={handleBasedOnRuleChange}>
+                <Label>Client *</Label>
+                <Select value={newRule.client} onValueChange={(value) => setNewRule({...newRule, client: value})}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select a rule to use as template" />
+                    <SelectValue placeholder="Select client" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Create from scratch</SelectItem>
-                    {rules.map(rule => (
-                      <SelectItem key={rule.id} value={rule.id.toString()}>
-                        {rule.name} ({rule.category})
-                      </SelectItem>
+                    {clients.map(client => (
+                      <SelectItem key={client} value={client}>{client}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -310,72 +517,78 @@ export default function RuleManagement() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="ruleName">Rule Name *</Label>
-                  <Input
-                    id="ruleName"
-                    placeholder="e.g., Weight Validation"
-                    value={newRule.name}
-                    onChange={(e) => setNewRule({...newRule, name: e.target.value})}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="ruleCategory">Category *</Label>
-                  <Select value={newRule.category} onValueChange={(value) => setNewRule({...newRule, category: value})}>
+                  <Label>Field *</Label>
+                  <Select value={newRule.field} onValueChange={(value) => setNewRule({...newRule, field: value, condition: ''})}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Select category" />
+                      <SelectValue placeholder="Select field" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Validation">Validation</SelectItem>
-                      <SelectItem value="Standardization">Standardization</SelectItem>
-                      <SelectItem value="Cleaning">Cleaning</SelectItem>
-                      <SelectItem value="Estimation">Estimation</SelectItem>
+                      {fields.map(field => (
+                        <SelectItem key={field} value={field}>{field.replace('_', ' ')}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Condition *</Label>
+                  <Select 
+                    value={newRule.condition} 
+                    onValueChange={(value) => setNewRule({...newRule, condition: value})}
+                    disabled={!newRule.field}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select condition" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {newRule.field && conditions[newRule.field]?.map(condition => (
+                        <SelectItem key={condition} value={condition}>{condition}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="ruleClient">Client *</Label>
-                <Select value={newRule.client} onValueChange={(value) => setNewRule({...newRule, client: value})}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select client" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="All Clients">All Clients</SelectItem>
-                    <SelectItem value="Elanco Primary">Elanco Primary</SelectItem>
-                    <SelectItem value="Elanco Secondary">Elanco Secondary</SelectItem>
-                    <SelectItem value="Other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              {(newRule.condition?.includes('value') || newRule.condition?.includes('between')) && (
+                <div className="space-y-2">
+                  <Label>Value {newRule.condition?.includes('between') ? '(min-max)' : ''}</Label>
+                  <Input
+                    placeholder={newRule.condition?.includes('between') ? "400-1500" : "400"}
+                    value={newRule.conditionValue}
+                    onChange={(e) => setNewRule({...newRule, conditionValue: e.target.value})}
+                  />
+                </div>
+              )}
 
               <div className="space-y-2">
-                <Label htmlFor="ruleDescription">Rule Description *</Label>
-                <Textarea
-                  id="ruleDescription"
-                  placeholder="Describe your rule in natural language..."
-                  value={newRule.description}
-                  onChange={(e) => setNewRule({...newRule, description: e.target.value})}
-                  rows={4}
-                />
+                <Label>Action *</Label>
+                <Select value={newRule.action} onValueChange={(value) => setNewRule({...newRule, action: value})}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select action" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {actions.map(action => (
+                      <SelectItem key={action} value={action}>
+                        {action.charAt(0).toUpperCase() + action.slice(1)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
                   <Switch
-                    id="isActive"
                     checked={newRule.isActive}
                     onCheckedChange={(checked) => setNewRule({...newRule, isActive: checked})}
                   />
-                  <Label htmlFor="isActive">Active</Label>
+                  <Label>Active</Label>
                 </div>
                 <div className="flex items-center space-x-2">
                   <Switch
-                    id="isPermanent"
                     checked={newRule.isPermanent}
                     onCheckedChange={(checked) => setNewRule({...newRule, isPermanent: checked})}
                   />
-                  <Label htmlFor="isPermanent">Permanent Rule</Label>
+                  <Label>Permanent Rule</Label>
                 </div>
               </div>
 
@@ -397,97 +610,142 @@ export default function RuleManagement() {
             <DialogHeader>
               <DialogTitle>Edit Rule</DialogTitle>
               <DialogDescription>
-                Modify the existing rule settings and description
+                Modify the existing rule parameters
               </DialogDescription>
             </DialogHeader>
+            
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="editRuleName">Rule Name *</Label>
+                  <Label>Rule Name *</Label>
                   <Input
-                    id="editRuleName"
                     placeholder="e.g., Weight Validation"
                     value={newRule.name}
                     onChange={(e) => setNewRule({...newRule, name: e.target.value})}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="editRuleCategory">Category *</Label>
+                  <Label>Category *</Label>
                   <Select value={newRule.category} onValueChange={(value) => setNewRule({...newRule, category: value})}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select category" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Validation">Validation</SelectItem>
-                      <SelectItem value="Standardization">Standardization</SelectItem>
-                      <SelectItem value="Cleaning">Cleaning</SelectItem>
-                      <SelectItem value="Estimation">Estimation</SelectItem>
+                      {categories.map(cat => (
+                        <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="editRuleClient">Client *</Label>
+                <Label>Client *</Label>
                 <Select value={newRule.client} onValueChange={(value) => setNewRule({...newRule, client: value})}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select client" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="All Clients">All Clients</SelectItem>
-                    <SelectItem value="Elanco Primary">Elanco Primary</SelectItem>
-                    <SelectItem value="Elanco Secondary">Elanco Secondary</SelectItem>
-                    <SelectItem value="Other">Other</SelectItem>
+                    {clients.map(client => (
+                      <SelectItem key={client} value={client}>{client}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
 
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Field *</Label>
+                  <Select value={newRule.field} onValueChange={(value) => setNewRule({...newRule, field: value, condition: ''})}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select field" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {fields.map(field => (
+                        <SelectItem key={field} value={field}>{field.replace('_', ' ')}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Condition *</Label>
+                  <Select 
+                    value={newRule.condition} 
+                    onValueChange={(value) => setNewRule({...newRule, condition: value})}
+                    disabled={!newRule.field}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select condition" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {newRule.field && conditions[newRule.field]?.map(condition => (
+                        <SelectItem key={condition} value={condition}>{condition}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {(newRule.condition?.includes('value') || newRule.condition?.includes('between')) && (
+                <div className="space-y-2">
+                  <Label>Value {newRule.condition?.includes('between') ? '(min-max)' : ''}</Label>
+                  <Input
+                    placeholder={newRule.condition?.includes('between') ? "400-1500" : "400"}
+                    value={newRule.conditionValue}
+                    onChange={(e) => setNewRule({...newRule, conditionValue: e.target.value})}
+                  />
+                </div>
+              )}
+
               <div className="space-y-2">
-                <Label htmlFor="editRuleDescription">Rule Description *</Label>
-                <Textarea
-                  id="editRuleDescription"
-                  placeholder="Describe your rule in natural language..."
-                  value={newRule.description}
-                  onChange={(e) => setNewRule({...newRule, description: e.target.value})}
-                  rows={4}
-                />
+                <Label>Action *</Label>
+                <Select value={newRule.action} onValueChange={(value) => setNewRule({...newRule, action: value})}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select action" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {actions.map(action => (
+                      <SelectItem key={action} value={action}>
+                        {action.charAt(0).toUpperCase() + action.slice(1)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
                   <Switch
-                    id="editIsActive"
                     checked={newRule.isActive}
                     onCheckedChange={(checked) => setNewRule({...newRule, isActive: checked})}
                   />
-                  <Label htmlFor="editIsActive">Active</Label>
+                  <Label>Active</Label>
                 </div>
                 <div className="flex items-center space-x-2">
                   <Switch
-                    id="editIsPermanent"
                     checked={newRule.isPermanent}
                     onCheckedChange={(checked) => setNewRule({...newRule, isPermanent: checked})}
                   />
-                  <Label htmlFor="editIsPermanent">Permanent Rule</Label>
+                  <Label>Permanent Rule</Label>
                 </div>
               </div>
 
               <div className="flex justify-end space-x-2">
-                <Button 
-                  variant="outline" 
-                  onClick={() => {
-                    setIsEditDialogOpen(false)
-                    setEditingRule(null)
-                    setNewRule({
-                      name: '',
-                      description: '',
-                      client: '',
-                      category: '',
-                      isActive: true,
-                      isPermanent: false
-                    })
-                  }}
-                >
+                <Button variant="outline" onClick={() => {
+                  setIsEditDialogOpen(false)
+                  setEditingRule(null)
+                  setNewRule({
+                    name: '',
+                    client: '',
+                    category: '',
+                    field: '',
+                    condition: '',
+                    conditionValue: '',
+                    action: '',
+                    isActive: true,
+                    isPermanent: false
+                  })
+                }}>
                   Cancel
                 </Button>
                 <Button onClick={handleUpdateRule}>
@@ -573,6 +831,7 @@ export default function RuleManagement() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="All">All Categories</SelectItem>
                 {categories.map(category => (
                   <SelectItem key={category} value={category}>{category}</SelectItem>
                 ))}
@@ -617,14 +876,18 @@ export default function RuleManagement() {
                   
                   <p className="text-gray-600 mb-4">{rule.description}</p>
                   
-                  <div className="grid grid-cols-3 gap-4 text-sm">
+                  <div className="grid grid-cols-4 gap-4 text-sm">
                     <div>
-                      <span className="text-gray-500">Last Used:</span>
-                      <div className="font-medium">{rule.lastUsed}</div>
+                      <span className="text-gray-500">Field:</span>
+                      <div className="font-medium">{rule.field?.replace('_', ' ')}</div>
                     </div>
                     <div>
-                      <span className="text-gray-500">Usage Count:</span>
-                      <div className="font-medium">{rule.usageCount}</div>
+                      <span className="text-gray-500">Condition:</span>
+                      <div className="font-medium">{rule.condition}</div>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Action:</span>
+                      <div className="font-medium">{rule.action}</div>
                     </div>
                     <div>
                       <span className="text-gray-500">Success Rate:</span>
@@ -680,4 +943,3 @@ export default function RuleManagement() {
     </div>
   )
 }
-

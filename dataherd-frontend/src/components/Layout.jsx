@@ -1,6 +1,6 @@
 import React from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/utils.js'
 import { Button } from '@/components/ui/button'
 import { 
   BarChart3, 
@@ -15,7 +15,7 @@ import {
 import { useState } from 'react'
 
 const navigation = [
-  { name: 'Dashboard', href: '/', icon: Home },
+  { name: 'Dashboard', href: '/dashboard', icon: Home },
   { name: 'Data Cleaning', href: '/cleaning', icon: Sparkles },
   { name: 'Rule Management', href: '/rules', icon: Database },
   { name: 'Reports', href: '/reports', icon: BarChart3 },

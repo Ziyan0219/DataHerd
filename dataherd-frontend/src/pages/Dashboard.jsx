@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -63,12 +64,25 @@ const clientData = [
 ]
 
 export default function Dashboard() {
+  const navigate = useNavigate()
   const [stats, setStats] = useState({
     totalOperations: 156,
     activeRules: 23,
     recordsProcessed: 125000,
     dataQualityScore: 94.2
   })
+
+  const handleStartCleaning = () => {
+    navigate('/cleaning')
+  }
+
+  const handleManageRules = () => {
+    navigate('/rules')
+  }
+
+  const handleGenerateReport = () => {
+    navigate('/reports')
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -272,15 +286,26 @@ export default function Dashboard() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Button className="h-20 flex flex-col items-center justify-center space-y-2">
+            <Button 
+              className="h-20 flex flex-col items-center justify-center space-y-2"
+              onClick={handleStartCleaning}
+            >
               <Sparkles className="h-6 w-6" />
               <span>Start New Cleaning</span>
             </Button>
-            <Button variant="outline" className="h-20 flex flex-col items-center justify-center space-y-2">
+            <Button 
+              variant="outline" 
+              className="h-20 flex flex-col items-center justify-center space-y-2"
+              onClick={handleManageRules}
+            >
               <Database className="h-6 w-6" />
               <span>Manage Rules</span>
             </Button>
-            <Button variant="outline" className="h-20 flex flex-col items-center justify-center space-y-2">
+            <Button 
+              variant="outline" 
+              className="h-20 flex flex-col items-center justify-center space-y-2"
+              onClick={handleGenerateReport}
+            >
               <FileText className="h-6 w-6" />
               <span>Generate Report</span>
             </Button>

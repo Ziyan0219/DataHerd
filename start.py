@@ -46,23 +46,23 @@ def check_environment():
             missing_vars.append(var)
     
     if missing_vars:
-        print(f"❌ Missing required environment variables: {', '.join(missing_vars)}")
+        print(f"Missing required environment variables: {', '.join(missing_vars)}")
         print("Please check your .env file or set these variables.")
         return False
     
-    print("✅ Environment variables check passed")
+    print("Environment variables check passed")
     return True
 
 
 def init_database():
     """Initialize the database."""
-    print("🔧 Initializing database...")
+    print("Initializing database...")
     try:
         initialize_database()
-        print("✅ Database initialized successfully")
+        print("Database initialized successfully")
         return True
     except Exception as e:
-        print(f"❌ Database initialization failed: {e}")
+        print(f"Database initialization failed: {e}")
         return False
 
 
@@ -72,14 +72,14 @@ def build_frontend():
     dist_dir = frontend_dir / "dist"
     
     if not frontend_dir.exists():
-        print("⚠️  Frontend directory not found, skipping frontend build")
+        print("Frontend directory not found, skipping frontend build")
         return True
     
     if dist_dir.exists():
-        print("✅ Frontend already built")
+        print("Frontend already built")
         return True
     
-    print("🔧 Building frontend...")
+    print("Building frontend...")
     try:
         import subprocess
         result = subprocess.run(
@@ -90,19 +90,19 @@ def build_frontend():
         )
         
         if result.returncode == 0:
-            print("✅ Frontend built successfully")
+            print("Frontend built successfully")
             return True
         else:
-            print(f"❌ Frontend build failed: {result.stderr}")
+            print(f"Frontend build failed: {result.stderr}")
             return False
     except Exception as e:
-        print(f"❌ Frontend build error: {e}")
+        print(f"Frontend build error: {e}")
         return False
 
 
 def start_server(host="0.0.0.0", port=9000, reload=False):
     """Start the DataHerd server."""
-    print(f"🚀 Starting DataHerd server on {host}:{port}")
+    print(f"Starting DataHerd server on {host}:{port}")
     
     app = create_app()
     
@@ -130,7 +130,7 @@ def main():
     # Setup logging
     setup_logging(args.log_level)
     
-    print("🐄 DataHerd - Intelligent Cattle Data Cleaning Agent")
+    print("DataHerd - Intelligent Cattle Data Cleaning Agent")
     print("=" * 50)
     
     # Check environment
@@ -145,15 +145,15 @@ def main():
     # Build frontend
     if not args.skip_frontend:
         if not build_frontend():
-            print("⚠️  Frontend build failed, but continuing with backend only")
+            print("Frontend build failed, but continuing with backend only")
     
     # Start server
     try:
         start_server(args.host, args.port, args.reload)
     except KeyboardInterrupt:
-        print("\n👋 DataHerd server stopped")
+        print("\nDataHerd server stopped")
     except Exception as e:
-        print(f"❌ Server error: {e}")
+        print(f"Server error: {e}")
         sys.exit(1)
 
 

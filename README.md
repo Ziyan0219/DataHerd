@@ -16,18 +16,61 @@ DataHerd is an AI-powered data cleaning platform specifically designed for Elanc
 
 DataHerd is built on a modern, scalable architecture:
 
-- **Backend**: FastAPI-based REST API server
-- **Frontend**: React-based web interface with Tailwind CSS
-- **Database**: SQLAlchemy ORM with support for multiple database backends
-- **AI Integration**: OpenAI API integration for natural language processing
-- **Data Processing**: Custom rule engine for flexible data validation
+### Backend Stack
+- **Framework**: FastAPI + Uvicorn ASGI server
+- **Database**: SQLAlchemy ORM with SQLite (default), PostgreSQL/MySQL support
+- **AI Integration**: OpenAI GPT-4 for natural language rule processing
+- **Data Processing**: Pandas + custom rule engine
+- **Authentication**: API key-based authentication
+
+### Frontend Stack
+- **Framework**: React 19 + React Router
+- **Styling**: Tailwind CSS + Shadcn/ui components
+- **Build Tool**: Vite with TypeScript support
+- **Charts**: Recharts for data visualization
+- **State Management**: React hooks + local state
+
+### Key Features Architecture
+- **SPA Routing**: Single Page Application with client-side routing
+- **Real-time Feedback**: Toast notifications and progress indicators
+- **Responsive Design**: Mobile-first responsive interface
+- **Component Library**: Reusable UI components with consistent design
+
+## ⚡ Quick Start (TL;DR)
+
+```bash
+# 1. Clone and setup
+git clone https://github.com/Ziyan0219/DataHerd.git
+cd DataHerd
+python -m venv dataherd_env
+source dataherd_env/bin/activate  # Windows: dataherd_env\Scripts\activate
+
+# 2. Install dependencies
+pip install fastapi uvicorn openai pandas sqlalchemy python-dotenv python-multipart
+
+# 3. Setup environment
+echo "OPENAI_API_KEY=your_key_here" > .env
+echo "DATABASE_URL=sqlite:///./dataherd.db" >> .env
+
+# 4. Build and run
+cd dataherd-frontend && npm install && npm run build && cd ..
+python start.py
+```
+
+**Then visit**: http://localhost:9000
 
 ## 📋 Prerequisites
 
-- Python 3.11+
-- Node.js 20+
-- PostgreSQL or SQLite database
-- OpenAI API key
+- Python 3.8+ (tested with Python 3.12)
+- Node.js 18+ and pnpm/npm
+- SQLite (default) or PostgreSQL/MySQL (optional)
+- OpenAI API key for AI-powered rule processing
+
+### System Requirements
+
+- Windows 10+, macOS, or Linux
+- 4GB RAM minimum (8GB recommended)
+- 1GB disk space for dependencies
 
 ## 🛠️ Installation
 
@@ -74,18 +117,47 @@ python3 -m venv dataherd_env
 source dataherd_env/bin/activate  # On Windows: dataherd_env\Scripts\activate
 ```
 
-#### 3. Install Dependencies
+#### 3. Install Python Dependencies
 
 ```bash
+# Core backend dependencies
+pip install fastapi uvicorn python-multipart
+pip install pandas sqlalchemy python-dotenv
+pip install openai
+
+# Or install all from requirements.txt if available
 pip install -r requirements.txt
 ```
 
+**Required Python Packages:**
+- `fastapi` - Modern web framework
+- `uvicorn` - ASGI server  
+- `sqlalchemy` - Database ORM
+- `pandas` - Data processing
+- `openai` - AI integration
+- `python-dotenv` - Environment configuration
+- `python-multipart` - File upload support
+
 #### 4. Environment Configuration
 
-```bash
-cp .env.example .env
-# Edit .env file with your configuration
+Create a `.env` file in the project root with the following content:
+
+```env
+# OpenAI Configuration (required for AI features)
+OPENAI_API_KEY=your_openai_api_key_here
+OPENAI_API_BASE=https://api.openai.com/v1
+
+# Database Configuration
+DATABASE_URL=sqlite:///./dataherd.db
+
+# Application Configuration
+USE_DOCKER=False
+DEBUG=True
+HOST=0.0.0.0
+PORT=9000
 ```
+
+**⚠️ Important**: You must provide a valid OpenAI API key for the AI-powered rule processing to work.
 
 #### 5. Initialize Database
 
@@ -94,33 +166,64 @@ cp .env.example .env
 python -m db.init_db
 ```
 
-#### 6. Build Frontend (Optional)
+#### 6. Build Frontend
 
 ```bash
 cd dataherd-frontend
+# Install frontend dependencies
 pnpm install
+# or if pnpm is not available
+npm install
+
+# Build the frontend
 pnpm run build
+# or
+npm run build
+
 cd ..
 ```
 
 #### 7. Start the Application
 
 ```bash
-python3 start.py
+# Basic startup
+python start.py
+
+# Development mode with auto-reload
+python start.py --reload --log-level DEBUG
+
+# Custom host and port
+python start.py --host 127.0.0.1 --port 9000
+
+# Skip database initialization (if already initialized)
+python start.py --skip-db-init
+
+# Skip frontend build (backend only)
+python start.py --skip-frontend
 ```
 
-### Method 3: Development Mode
+### Option 4: Development Mode
 
-For development with auto-reload:
+For frontend development with hot reload:
 
 ```bash
-python3 start.py --reload --log-level DEBUG
+# Terminal 1: Start backend
+python start.py --skip-frontend
+
+# Terminal 2: Start frontend dev server
+cd dataherd-frontend
+pnpm run dev
+# Access at http://localhost:5173
 ```
 
-### Method 4: Custom Configuration
+### Option 5: Production Deployment
 
 ```bash
-python3 start.py --host 127.0.0.1 --port 8000 --skip-frontend
+# Build everything first
+cd dataherd-frontend && pnpm run build && cd ..
+
+# Start in production mode
+python start.py --host 0.0.0.0 --port 9000
 ```
 
 ## 🌐 Accessing the Application
@@ -132,25 +235,42 @@ Once started, the application will be available at:
 
 ## 📖 Usage Guide
 
-### Defining Cleaning Rules
+### Getting Started
 
-DataHerd accepts natural language descriptions of cleaning rules. Examples:
+1. **Welcome Screen**: Visit http://localhost:9000 to see the welcome screen
+2. **Dashboard**: Navigate to the dashboard for system overview and quick actions
+3. **Data Cleaning**: Upload cattle data and define cleaning rules
+4. **Rule Management**: Create, edit, and manage cleaning rules
+5. **Reports**: Generate comprehensive cleaning reports
+
+### Key Features
+
+#### 🤖 AI-Powered Rule Processing
+Define cleaning rules in natural language:
 
 ```
-Flag lots where entry weight is below 500 pounds, and delete lots where entry weight is above 1500 pounds.
-
-For Elanco clients, use stricter thresholds of 450 and 1400 pounds respectively.
-
-Remove any lots with missing breed information or invalid birth dates.
+Flag cattle with weight below 400 pounds or above 1500 pounds
+Standardize breed names to proper capitalization
+Remove records with missing birth dates
+Estimate missing weights based on breed and age patterns
 ```
 
-### Client-Specific Rules
+#### 📊 Enhanced Preview System
+- **Selective Acceptance**: Accept, reject, or edit individual changes
+- **Keyboard Editing**: Click "Edit" to modify suggested values directly
+- **Confidence Scoring**: See AI confidence levels for each suggestion
+- **Batch Operations**: Accept all or reject all changes at once
 
-DataHerd automatically remembers rules for specific clients. When processing a batch for a known client, previously used rules are automatically suggested and can be reapplied.
+#### 🎯 Rule Management
+- **Template-Based Creation**: Base new rules on existing ones
+- **Edit Functionality**: Modify existing rules with full details
+- **Success Rate Tracking**: N/A for new rules, percentage for used rules
+- **Client-Specific Rules**: Organize rules by client context
 
-### Permanent Rule Updates
-
-When you identify a rule that should be applied globally, you can mark it as "permanent" to update the underlying cleaning logic for all future operations.
+#### 📈 Smart Reporting
+- **Real-time Generation**: Generate reports with progress indicators
+- **Multiple Report Types**: Operations, client-specific, quality analysis
+- **Data Cleaning Reports**: Automatic report generation after cleaning operations
 
 ## 🔧 Configuration
 
@@ -192,13 +312,46 @@ Once the server is running, visit `http://localhost:9000/docs` for interactive A
 ## 🧪 Testing
 
 ```bash
-# Run backend tests
+# Run core functionality tests
+python test_core_functionality.py
+
+# Run simple integration test
+python simple_test.py
+
+# Run pytest (if test files exist)
 python -m pytest tests/
 
-# Run frontend tests
+# Run frontend tests (if configured)
 cd dataherd-frontend
 pnpm test
 ```
+
+## 🚨 Troubleshooting
+
+### Common Issues
+
+#### White Screen on Startup
+- Ensure frontend is built: `cd dataherd-frontend && pnpm run build`
+- Check server logs for errors
+- Verify all dependencies are installed
+
+#### Database Errors
+- Initialize database: `python -m db.init_db`
+- Check SQLite file permissions
+- Verify DATABASE_URL in .env file
+
+#### OpenAI API Errors
+- Verify OPENAI_API_KEY in .env file
+- Check API key validity and usage limits
+- Ensure internet connectivity for API calls
+
+#### Port Already in Use
+- Use different port: `python start.py --port 8000`
+- Kill existing process: `lsof -ti:9000 | xargs kill -9` (Unix/Mac)
+
+#### Windows Unicode Errors
+- Ensure terminal supports UTF-8
+- All emoji characters have been removed from startup messages
 
 ## 📈 Monitoring and Logging
 
